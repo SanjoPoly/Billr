@@ -385,7 +385,7 @@
 
     <div class="section-head"><h3 style="font-size:1.02rem;font-weight:700">Line items</h3></div>
     <div class="table-card" style="margin-bottom:.9rem">
-      <table id="lineTable"><thead><tr><th>Description</th><th>HSN/SAC</th><th style="text-align:right">Qty</th><th style="text-align:right">Rate</th><th>GST %</th><th style="text-align:right">Amount</th><th></th></tr></thead><tbody></tbody></table>
+      <table id="lineTable"><thead><tr><th>#</th><th>Consignee</th><th>Destination</th><th>AWB No</th><th>Date</th><th>Weight</th><th style="text-align:right">Rate</th><th>GST %</th><th style="text-align:right">Amount</th><th></th></tr></thead><tbody></tbody></table>
     </div>
     <button class="btn-line" id="btnAddLine">＋ Add line</button>
 
@@ -461,6 +461,7 @@
     <div class="f admin-only"><label for="stEmail">Email</label><input type="email" id="stEmail"></div>
     <div class="f admin-only"><label for="stPhone">Phone</label><input type="tel" id="stPhone"></div>
     <div class="f admin-only"><label for="stPrefix">Invoice number prefix</label><input type="text" id="stPrefix" placeholder="INV"><div class="hint">Numbers look like PREFIX/25-26/0001, restarting each financial year (Apr–Mar).</div></div>
+    <div class="f admin-only"><label for="stHsn">Default HSN/SAC <i>(applied to all invoice lines)</i></label><input type="text" id="stHsn" placeholder="e.g. 9968 for courier services"></div>
     <div class="admin-only" style="border-top:1px solid var(--line);padding-top:1rem;margin-top:1.1rem">
       <label style="display:block;font-size:.7rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem">Users &amp; roles</label>
       <div id="usersList" style="display:flex;flex-direction:column;gap:.45rem;margin-bottom:.8rem"></div>
@@ -526,7 +527,7 @@ const EMBEDDED=null; // BILR-EMBED — replace this whole line with your generat
 let customers=[];   // {name,gstin,email,phone,person,personNo,addr}
 let invoices=[];    // {no,date,customer,gstin,taxType,taxable,cgst,sgst,igst,total,status,notes}
 let lines=[];       // {no,desc,hsn,qty,rate,gst,taxable,gstAmt,total}
-let biz={name:"",addr:"",gstin:"",email:"",phone:"",prefix:"INV",logo:""};
+let biz={name:"",addr:"",gstin:"",email:"",phone:"",prefix:"INV",logo:"",hsn:""};
 let users=[],currentUser=null,theme=(function(){try{return localStorage.getItem("bilr.theme")==="light"?"light":"dark";}catch(_){return "dark";}})();
 let storageMode="github";
 const gh={token:"",repo:"",path:"",branch:"main",sha:null};
@@ -684,7 +685,7 @@ function parseWorkbook(buf){
   const g=(r,k)=>r[Object.keys(r).find(x=>x.trim().toLowerCase()===k)]??"";
 
   customers=[];invoices=[];lines=[];users=[];
-  biz={name:"",addr:"",gstin:"",email:"",phone:"",prefix:"INV",logo:""};
+  biz={name:"",addr:"",gstin:"",email:"",phone:"",prefix:"INV",logo:"",hsn:""};
   let legacyU="",legacyH="";
 
   const sC=find("customers");
@@ -711,9 +712,17 @@ function parseWorkbook(buf){
 
   const sL=find("invoice lines");
   if(sL)XLSX.utils.sheet_to_json(wb.Sheets[sL],{defval:""}).forEach(r=>{
-    lines.push({no:String(g(r,"invoice no")||"").trim(),desc:String(g(r,"description")||"").trim(),
-      hsn:String(g(r,"hsn/sac")||g(r,"hsn")||"").trim(),qty:num(g(r,"qty"))||1,rate:num(g(r,"rate")),
-      gst:num(g(r,"gst %")||g(r,"gst")),taxable:num(g(r,"taxable")),gstAmt:num(g(r,"gst amount")),total:num(g(r,"total"))});
+    lines.push({no:String(g(r,"invoice no")||"").trim(),
+      sno:num(g(r,"s no")||g(r,"s.no")),
+      consignee:String(g(r,"consignee")||g(r,"description")||"").trim(),
+      dest:String(g(r,"destination")||"").trim(),
+      awb:String(g(r,"awb no")||g(r,"awb")||"").trim(),
+      date:normDate(g(r,"date")),
+      weight:String(g(r,"weight")??"").toString().trim(),
+      rate:num(g(r,"rate")),
+      gst:num(g(r,"gst %")||g(r,"gst")),
+      hsn:String(g(r,"hsn/sac")||g(r,"hsn")||"").trim(),
+      taxable:num(g(r,"taxable")),gstAmt:num(g(r,"gst amount")),total:num(g(r,"total"))});
   });
   lines=lines.filter(l=>l.no);
 
@@ -727,6 +736,7 @@ function parseWorkbook(buf){
     if(key==="businessemail"&&val)biz.email=String(val);
     if(key==="businessphone"&&val)biz.phone=String(val);
     if(key==="invoiceprefix"&&val)biz.prefix=String(val);
+    if(key==="defaulthsn"&&val)biz.hsn=String(val);
     if(key==="username"&&val)legacyU=String(val);
     if(key==="passwordhash"&&val)legacyH=String(val);
     if(key==="theme"&&val)applyTheme(String(val).toLowerCase()==="light"?"light":"dark");
@@ -761,12 +771,12 @@ function buildWorkbook(){
     {header:["Name","GSTIN","Email","Phone","Contact Person","Contact Number","Address","Created By","Created At"]});
   const wsI=XLSX.utils.json_to_sheet(invoices.map(i=>({"Invoice No":i.no,"Date":i.date,"Customer":i.customer,"GSTIN":i.gstin,"Tax Type":i.taxType,"Taxable Value":i.taxable,"CGST":i.cgst,"SGST":i.sgst,"IGST":i.igst,"Total":i.total,"Status":i.status,"Notes":i.notes,"Created By":i.createdBy||"","Created At":i.createdAt||""})),
     {header:["Invoice No","Date","Customer","GSTIN","Tax Type","Taxable Value","CGST","SGST","IGST","Total","Status","Notes","Created By","Created At"]});
-  const wsL=XLSX.utils.json_to_sheet(lines.map(l=>({"Invoice No":l.no,"Description":l.desc,"HSN/SAC":l.hsn,"Qty":l.qty,"Rate":l.rate,"GST %":l.gst,"Taxable":l.taxable,"GST Amount":l.gstAmt,"Total":l.total})),
-    {header:["Invoice No","Description","HSN/SAC","Qty","Rate","GST %","Taxable","GST Amount","Total"]});
+  const wsL=XLSX.utils.json_to_sheet(lines.map(l=>({"Invoice No":l.no,"S No":l.sno||"","Consignee":l.consignee,"Destination":l.dest,"AWB No":l.awb,"Date":l.date,"Weight":l.weight,"Rate":l.rate,"GST %":l.gst,"HSN/SAC":l.hsn,"Taxable":l.taxable,"GST Amount":l.gstAmt,"Total":l.total})),
+    {header:["Invoice No","S No","Consignee","Destination","AWB No","Date","Weight","Rate","GST %","HSN/SAC","Taxable","GST Amount","Total"]});
   const settingsRows=[
     {Key:"BusinessName",Value:biz.name},{Key:"BusinessAddress",Value:biz.addr},{Key:"BusinessGSTIN",Value:biz.gstin},
     {Key:"BusinessEmail",Value:biz.email},{Key:"BusinessPhone",Value:biz.phone},{Key:"InvoicePrefix",Value:biz.prefix},
-    {Key:"Theme",Value:theme}];
+    {Key:"DefaultHSN",Value:biz.hsn},{Key:"Theme",Value:theme}];
   if(biz.logo){
     const CH=30000;
     for(let i=0;i*CH<biz.logo.length;i++)settingsRows.push({Key:"Logo"+(i+1),Value:biz.logo.slice(i*CH,(i+1)*CH)});
@@ -774,7 +784,7 @@ function buildWorkbook(){
   const wsS=XLSX.utils.json_to_sheet(settingsRows);
   wsC["!cols"]=[{wch:26},{wch:18},{wch:24},{wch:14},{wch:18},{wch:14},{wch:38}];
   wsI["!cols"]=[{wch:16},{wch:12},{wch:26},{wch:18},{wch:12},{wch:14},{wch:11},{wch:11},{wch:11},{wch:13},{wch:9},{wch:24},{wch:12},{wch:17}];
-  wsL["!cols"]=[{wch:16},{wch:30},{wch:10},{wch:7},{wch:11},{wch:7},{wch:12},{wch:12},{wch:13}];
+  wsL["!cols"]=[{wch:16},{wch:6},{wch:22},{wch:12},{wch:14},{wch:12},{wch:8},{wch:9},{wch:7},{wch:9},{wch:11},{wch:11},{wch:12}];
   wsS["!cols"]=[{wch:16},{wch:60}];
   XLSX.utils.book_append_sheet(wb,wsC,"Customers");
   XLSX.utils.book_append_sheet(wb,wsI,"Invoices");
@@ -1194,7 +1204,7 @@ function nextInvoiceNo(dateISO){
   return `${prefix}/${fy}/${String(max+1).padStart(4,"0")}`;
 }
 function resetBuilder(){
-  builder={editingNo:null,lines:[{desc:"",hsn:"",qty:1,rate:0,gst:18}]};
+  builder={editingNo:null,lines:[{consignee:"",dest:"",awb:"",date:todayISO(),weight:"",rate:0,gst:18}]};
   $("#nDate").value=todayISO();
   $("#nTax").value="auto";
   $("#nNotes").value="";
@@ -1220,10 +1230,11 @@ function effectiveTaxType(){
   if(bs&&cs&&bs!==cs)return "IGST";
   return "CGST/SGST";
 }
+const lineAmt=l=>{const w=parseFloat(l.weight);return isNaN(w)?r2(num(l.rate)):r2(w*num(l.rate));};
 function builderTotals(){
   let taxable=0,gst=0;
   builder.lines.forEach(l=>{
-    const t=r2(num(l.qty)*num(l.rate));
+    const t=lineAmt(l);
     taxable+=t;gst+=r2(t*num(l.gst)/100);
   });
   taxable=r2(taxable);gst=r2(gst);
@@ -1234,14 +1245,16 @@ function builderTotals(){
 }
 function renderBuilder(){
   $("#lineTable tbody").innerHTML=builder.lines.map((l,i)=>{
-    const amt=r2(num(l.qty)*num(l.rate));
     return `<tr data-i="${i}">
-      <td data-l="Description"><input type="text" class="bl-desc" value="${esc(l.desc)}" placeholder="Item or service"></td>
-      <td data-l="HSN/SAC"><input type="text" class="bl-hsn" value="${esc(l.hsn)}" placeholder="9983"></td>
-      <td data-l="Qty" class="num"><input type="number" step="0.01" min="0" inputmode="decimal" class="bl-qty" value="${l.qty}"></td>
+      <td data-l="#" style="color:var(--muted);font-family:var(--mono);font-size:.8rem">${i+1}</td>
+      <td data-l="Consignee"><input type="text" class="bl-consignee" value="${esc(l.consignee)}" placeholder="Receiver name"></td>
+      <td data-l="Destination"><input type="text" class="bl-dest" value="${esc(l.dest)}" placeholder="e.g. TCR"></td>
+      <td data-l="AWB No"><input type="text" class="bl-awb" value="${esc(l.awb)}" placeholder="4313528672"></td>
+      <td data-l="Date"><input type="date" class="bl-date" value="${esc(l.date)}"></td>
+      <td data-l="Weight"><input type="text" class="bl-weight" value="${esc(l.weight)}" placeholder="3 or DOC" inputmode="decimal" style="min-width:64px"></td>
       <td data-l="Rate" class="num"><input type="number" step="0.01" min="0" inputmode="decimal" class="bl-rate" value="${l.rate}"></td>
       <td data-l="GST %"><select class="bl-gst">${GST_RATES.map(r=>`<option value="${r}"${r===num(l.gst)?" selected":""}>${r}%</option>`).join("")}</select></td>
-      <td data-l="Amount" class="num">${fmt(amt)}</td>
+      <td data-l="Amount" class="num">${fmt(lineAmt(l))}</td>
       <td data-l=""><div class="row-actions"><button type="button" class="icon-btn danger bl-del">✕</button></div></td></tr>`;
   }).join("");
   const t=builderTotals();
@@ -1258,15 +1271,17 @@ function renderBuilder(){
 $("#lineTable").addEventListener("input",e=>{
   const tr=e.target.closest("tr");if(!tr)return;
   const l=builder.lines[+tr.dataset.i];if(!l)return;
-  if(e.target.classList.contains("bl-desc"))l.desc=e.target.value;
-  if(e.target.classList.contains("bl-hsn"))l.hsn=e.target.value;
-  if(e.target.classList.contains("bl-qty"))l.qty=e.target.value;
+  if(e.target.classList.contains("bl-consignee"))l.consignee=e.target.value;
+  if(e.target.classList.contains("bl-dest"))l.dest=e.target.value;
+  if(e.target.classList.contains("bl-awb"))l.awb=e.target.value;
+  if(e.target.classList.contains("bl-date"))l.date=e.target.value;
+  if(e.target.classList.contains("bl-weight"))l.weight=e.target.value;
   if(e.target.classList.contains("bl-rate"))l.rate=e.target.value;
   if(e.target.classList.contains("bl-gst"))l.gst=e.target.value;
-  if(e.target.classList.contains("bl-qty")||e.target.classList.contains("bl-rate")||e.target.classList.contains("bl-gst")){
+  if(e.target.classList.contains("bl-weight")||e.target.classList.contains("bl-rate")||e.target.classList.contains("bl-gst")){
     // update amount cell + totals without rebuilding inputs (keeps focus)
     const amtCell=tr.querySelector('td[data-l="Amount"]');
-    if(amtCell)amtCell.textContent=fmt(r2(num(l.qty)*num(l.rate)));
+    if(amtCell)amtCell.textContent=fmt(lineAmt(l));
     const t=builderTotals();
     $("#tTaxable").textContent=fmt(t.taxable);$("#tCgst").textContent=fmt(t.cgst);
     $("#tSgst").textContent=fmt(t.sgst);$("#tIgst").textContent=fmt(t.igst);$("#tGrand").textContent=fmt(t.total);
@@ -1276,12 +1291,12 @@ $("#lineTable").addEventListener("click",e=>{
   if(!e.target.classList.contains("bl-del"))return;
   const tr=e.target.closest("tr");
   builder.lines.splice(+tr.dataset.i,1);
-  if(!builder.lines.length)builder.lines.push({desc:"",hsn:"",qty:1,rate:0,gst:18});
+  if(!builder.lines.length)builder.lines.push({consignee:"",dest:"",awb:"",date:todayISO(),weight:"",rate:0,gst:18});
   renderBuilder();
 });
 $("#btnAddLine").addEventListener("click",()=>{
   const last=builder.lines[builder.lines.length-1];
-  builder.lines.push({desc:"",hsn:"",qty:1,rate:0,gst:last?num(last.gst):18});
+  builder.lines.push({consignee:"",dest:"",awb:"",date:last?last.date:todayISO(),weight:"",rate:last?num(last.rate):0,gst:last?num(last.gst):18});
   renderBuilder();
 });
 $("#nCust").addEventListener("change",renderBuilder);
@@ -1291,8 +1306,8 @@ $("#nDate").addEventListener("change",()=>{if(!builder.editingNo)$("#invNoDispla
 $("#btnSaveInv").addEventListener("click",()=>{
   const c=selectedCustomer();
   if(!c){toast("Add and select a customer first");return;}
-  const validLines=builder.lines.filter(l=>l.desc.trim()&&num(l.rate)>0&&num(l.qty)>0);
-  if(!validLines.length){toast("Add at least one line with a description, qty and rate");return;}
+  const validLines=builder.lines.filter(l=>l.consignee.trim()&&num(l.rate)>0);
+  if(!validLines.length){toast("Add at least one line with a consignee and rate");return;}
   const date=$("#nDate").value||todayISO();
   const t=builderTotals();
   const no=builder.editingNo||nextInvoiceNo(date);
@@ -1304,11 +1319,12 @@ $("#btnSaveInv").addEventListener("click",()=>{
     taxable:t.taxable,cgst:t.cgst,sgst:t.sgst,igst:t.igst,total:t.total,
     status:prev?prev.status:"Unpaid",notes:$("#nNotes").value.trim(),
     createdBy:prev?prev.createdBy:currentUser.user,createdAt:prev?prev.createdAt:nowStamp()});
-  validLines.forEach(l=>{
-    const taxable=r2(num(l.qty)*num(l.rate));
+  validLines.forEach((l,ix)=>{
+    const taxable=lineAmt(l);
     const gstAmt=r2(taxable*num(l.gst)/100);
-    lines.push({no,desc:l.desc.trim(),hsn:l.hsn.trim(),qty:num(l.qty),rate:num(l.rate),
-      gst:num(l.gst),taxable,gstAmt,total:r2(taxable+gstAmt)});
+    lines.push({no,sno:ix+1,consignee:l.consignee.trim(),dest:l.dest.trim(),awb:l.awb.trim(),
+      date:l.date||date,weight:String(l.weight).trim(),rate:num(l.rate),
+      gst:num(l.gst),hsn:biz.hsn,taxable,gstAmt,total:r2(taxable+gstAmt)});
   });
   setDirty(true);
   const wasEdit=!!builder.editingNo;
@@ -1321,7 +1337,7 @@ $("#btnCancelInv").addEventListener("click",()=>{resetBuilder();refreshBuilderMe
 
 function loadInvoiceIntoBuilder(inv){
   builder.editingNo=inv.no;
-  builder.lines=lines.filter(l=>l.no===inv.no).map(l=>({desc:l.desc,hsn:l.hsn,qty:l.qty,rate:l.rate,gst:l.gst}));
+  builder.lines=lines.filter(l=>l.no===inv.no).map(l=>({consignee:l.consignee,dest:l.dest,awb:l.awb,date:l.date||inv.date,weight:l.weight,rate:l.rate,gst:l.gst}));
   if(!builder.lines.length)builder.lines.push({desc:"",hsn:"",qty:1,rate:0,gst:18});
   $$(".pill").forEach(x=>x.classList.remove("active"));
   $('[data-tab="new"]').classList.add("active");
@@ -1371,13 +1387,13 @@ function openPrint(inv){
       </div>
     </div>
     <table>
-      <thead><tr><th>#</th><th>Description</th><th>HSN/SAC</th><th style="text-align:right">Qty</th><th style="text-align:right">Rate</th><th style="text-align:right">Taxable</th><th style="text-align:right">GST %</th><th style="text-align:right">GST Amt</th><th style="text-align:right">Total</th></tr></thead>
+      <thead><tr><th>S. No</th><th>Consignee</th><th>Destination</th><th>AWB No</th><th>Date</th><th style="text-align:right">Weight</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th></tr></thead>
       <tbody>${ls.map((l,i)=>`<tr>
-        <td>${i+1}</td><td>${esc(l.desc)}</td><td>${esc(l.hsn)||"—"}</td>
-        <td class="n">${l.qty}</td><td class="n">${fmt(l.rate)}</td><td class="n">${fmt(l.taxable)}</td>
-        <td class="n">${l.gst}%</td><td class="n">${fmt(l.gstAmt)}</td><td class="n">${fmt(l.total)}</td></tr>`).join("")}
+        <td>${i+1}</td><td>${esc(l.consignee)}</td><td>${esc(l.dest)||"—"}</td><td style="font-family:'JetBrains Mono',monospace;font-size:11.5px">${esc(l.awb)||"—"}</td>
+        <td>${esc(l.date)||"—"}</td><td class="n">${esc(l.weight)||"—"}</td><td class="n">${fmt(l.rate)}</td><td class="n">${fmt(l.taxable)}</td></tr>`).join("")}
       </tbody>
     </table>
+    ${biz.hsn?`<div class="muted" style="margin:-4px 0 8px">SAC/HSN: ${esc(biz.hsn)} · GST as per summary below</div>`:""}
     <div class="totals">
       <div class="r"><span>Taxable value</span><span>${fmt(inv.taxable)}</span></div>
       ${igst?`<div class="r"><span>IGST</span><span>${fmt(inv.igst)}</span></div>`
@@ -1431,9 +1447,9 @@ $("#btnExpLines").addEventListener("click",()=>{
   if(!invs.length){toast("No invoices in that period");return;}
   const set=new Set(invs.map(i=>i.no));
   const byNo=Object.fromEntries(invs.map(i=>[i.no,i]));
-  const out=[["Invoice No","Date","Customer","GSTIN","Description","HSN/SAC","Qty","Rate","Taxable","GST %","GST Amount","Line Total"]];
+  const out=[["Invoice No","Invoice Date","Party","GSTIN","S No","Consignee","Destination","AWB No","Date","Weight","Rate","GST %","HSN/SAC","Taxable","GST Amount","Line Total"]];
   lines.filter(l=>set.has(l.no)).forEach(l=>{const i=byNo[l.no];
-    out.push([l.no,i.date,i.customer,i.gstin,l.desc,l.hsn,l.qty,l.rate,l.taxable,l.gst,l.gstAmt,l.total]);});
+    out.push([l.no,i.date,i.customer,i.gstin,l.sno||"",l.consignee,l.dest,l.awb,l.date,l.weight,l.rate,l.gst,l.hsn,l.taxable,l.gstAmt,l.total]);});
   downloadCSV(`invoice-lines_${$("#expFrom").value||"all"}_${$("#expTo").value||"all"}.csv`,out);
   toast("Line items downloaded ✓");
 });
@@ -1444,7 +1460,7 @@ $("#btnExpLines").addEventListener("click",()=>{
 $("#btnSettings").addEventListener("click",()=>{
   $("#settingsError").style.display="none";
   $("#stBiz").value=biz.name;$("#stAddr").value=biz.addr;$("#stGstin").value=biz.gstin;
-  $("#stEmail").value=biz.email;$("#stPhone").value=biz.phone;$("#stPrefix").value=biz.prefix;
+  $("#stEmail").value=biz.email;$("#stPhone").value=biz.phone;$("#stPrefix").value=biz.prefix;$("#stHsn").value=biz.hsn;
   $("#stUser").value=currentUser.user;
   $("#stCur").value="";$("#stNew").value="";$("#stNew2").value="";
   refreshLogoPreview();
@@ -1567,6 +1583,7 @@ $("#btnSettingsSave").addEventListener("click",async()=>{
     biz.gstin=$("#stGstin").value.trim().toUpperCase();
     biz.email=$("#stEmail").value.trim();biz.phone=$("#stPhone").value.trim();
     biz.prefix=($("#stPrefix").value.trim()||"INV");
+    biz.hsn=$("#stHsn").value.trim();
   }
   $("#bizLabel").textContent=biz.name||"GST invoicing";
   $("#userChip").textContent=(currentUser.name||currentUser.user)+" · "+currentUser.role;
