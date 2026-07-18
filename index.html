@@ -9,6 +9,7 @@
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.0/chart.umd.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -106,6 +107,13 @@
   .kpi .label{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600}
   .kpi .value{font-family:var(--mono);font-size:1.4rem;font-weight:600;margin-top:.35rem;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
   .kpi .sub{font-size:.76rem;color:var(--muted);margin-top:.25rem}
+  .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:.8rem;margin-bottom:1rem}
+  .chart-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.05rem 1.15rem;min-width:0}
+  .chart-card h3{font-size:.93rem;font-weight:700;margin-bottom:.8rem}
+  .chart-card h3 small{color:var(--muted);font-weight:500;font-family:'Inter';font-size:.73rem;margin-left:.35rem}
+  .chart-box{position:relative;height:230px}
+  body:not(.role-admin) .admin-only{display:none!important}
+  .made-by{display:block;font-size:.68rem;color:var(--muted);font-family:'Inter';font-weight:400;margin-top:.1rem}
 
   .section-head{display:flex;align-items:center;gap:.7rem;margin-bottom:.9rem;flex-wrap:wrap}
   .section-head h2{font-size:1.3rem;font-weight:700;letter-spacing:-.02em}
@@ -309,6 +317,7 @@
 <main id="app">
   <div class="topbar">
     <div class="logo"><div class="logo-mark">B</div><div><b>Bilr</b><span id="bizLabel">GST invoicing</span></div></div>
+    <span class="mode-badge" id="userChip" style="margin:0"></span>
     <button class="top-btn" id="btnTheme" title="Switch light / dark">🌙</button>
     <button class="top-btn" id="btnSettings">Settings</button>
     <button class="top-btn" id="btnLock">Sign out</button>
@@ -329,6 +338,11 @@
       <div class="kpi gold"><div class="label">Outstanding (unpaid)</div><div class="value" id="kDue">—</div><div class="sub" id="kDueSub"></div></div>
       <div class="kpi mint"><div class="label">GST collected · this FY</div><div class="value" id="kGst">—</div><div class="sub" id="kGstSub"></div></div>
       <div class="kpi coral"><div class="label">Customers</div><div class="value" id="kCust">—</div><div class="sub" id="kCustSub"></div></div>
+    </div>
+    <div class="charts">
+      <div class="chart-card"><h3>Billing <small>last 6 months</small></h3><div class="chart-box"><canvas id="chBill"></canvas></div></div>
+      <div class="chart-card"><h3>Receivables <small>paid vs unpaid</small></h3><div class="chart-box"><canvas id="chPaid"></canvas></div></div>
+      <div class="chart-card"><h3>Top customers <small>by billed amount</small></h3><div class="chart-box"><canvas id="chTop"></canvas></div></div>
     </div>
     <div class="section-head"><h2>Recent invoices</h2></div>
     <div class="table-card">
@@ -432,13 +446,34 @@
     <h2 style="font-size:1.25rem;margin-bottom:.5rem">Settings</h2>
     <p class="sub">Business details appear on every invoice. Changes are stored on your next Save.</p>
     <div class="auth-error" id="settingsError"></div>
-    <div class="f"><label for="stBiz">Business name</label><input type="text" id="stBiz"></div>
-    <div class="f"><label for="stAddr">Business address</label><textarea id="stAddr" rows="2" style="resize:vertical"></textarea></div>
-    <div class="f"><label for="stGstin">Business GSTIN</label><input type="text" id="stGstin" style="text-transform:uppercase"></div>
-    <div class="f"><label for="stEmail">Email</label><input type="email" id="stEmail"></div>
-    <div class="f"><label for="stPhone">Phone</label><input type="tel" id="stPhone"></div>
-    <div class="f"><label for="stPrefix">Invoice number prefix</label><input type="text" id="stPrefix" placeholder="INV"><div class="hint">Numbers look like PREFIX/25-26/0001, restarting each financial year (Apr–Mar).</div></div>
-    <div class="f" style="border-top:1px solid var(--line);padding-top:1rem;margin-top:1.1rem"><label for="stUser">Login ID</label><input type="text" id="stUser" autocomplete="username"></div>
+    <div class="f admin-only"><label for="stBiz">Business name</label><input type="text" id="stBiz"></div>
+    <div class="f admin-only"><label>Company logo <i>(printed on invoices)</i></label>
+      <div style="display:flex;align-items:center;gap:.8rem;flex-wrap:wrap">
+        <img id="stLogoPreview" alt="" style="height:48px;max-width:170px;object-fit:contain;background:#fff;border-radius:8px;padding:4px;display:none">
+        <input type="file" id="stLogoFile" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="display:none">
+        <button type="button" class="btn-line" id="btnLogoPick">Upload logo</button>
+        <button type="button" class="icon-btn danger" id="btnLogoRemove" style="display:none">Remove</button>
+      </div>
+      <div class="hint">PNG with a transparent background looks best. It’s resized automatically and stored inside your register.</div>
+    </div>
+    <div class="f admin-only"><label for="stAddr">Business address</label><textarea id="stAddr" rows="2" style="resize:vertical"></textarea></div>
+    <div class="f admin-only"><label for="stGstin">Business GSTIN</label><input type="text" id="stGstin" style="text-transform:uppercase"></div>
+    <div class="f admin-only"><label for="stEmail">Email</label><input type="email" id="stEmail"></div>
+    <div class="f admin-only"><label for="stPhone">Phone</label><input type="tel" id="stPhone"></div>
+    <div class="f admin-only"><label for="stPrefix">Invoice number prefix</label><input type="text" id="stPrefix" placeholder="INV"><div class="hint">Numbers look like PREFIX/25-26/0001, restarting each financial year (Apr–Mar).</div></div>
+    <div class="admin-only" style="border-top:1px solid var(--line);padding-top:1rem;margin-top:1.1rem">
+      <label style="display:block;font-size:.7rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem">Users &amp; roles</label>
+      <div id="usersList" style="display:flex;flex-direction:column;gap:.45rem;margin-bottom:.8rem"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem">
+        <div class="f" style="margin:0"><input type="text" id="nuUser" placeholder="Login ID" autocomplete="off"></div>
+        <div class="f" style="margin:0"><input type="text" id="nuName" placeholder="Display name" autocomplete="off"></div>
+        <div class="f" style="margin:0"><input type="password" id="nuPass" placeholder="Password" autocomplete="new-password"></div>
+        <div class="f" style="margin:0"><select id="nuRole"><option>User</option><option>Admin</option></select></div>
+      </div>
+      <button type="button" class="btn-line" id="btnAddUser" style="margin-top:.6rem;width:100%">＋ Add user</button>
+      <div class="hint" style="margin-top:.5rem">Admins can do everything. Users can add records, view, print PDFs and export — but can’t edit, delete or change settings.</div>
+    </div>
+    <div class="f" style="border-top:1px solid var(--line);padding-top:1rem;margin-top:1.1rem"><label for="stUser">My login ID</label><input type="text" id="stUser" autocomplete="username"></div>
     <div class="f"><label for="stCur">Current password <i>(only to change password)</i></label><input type="password" id="stCur" autocomplete="current-password"></div>
     <div class="f"><label for="stNew">New password</label><input type="password" id="stNew" autocomplete="new-password"></div>
     <div class="f"><label for="stNew2">Confirm new password</label><input type="password" id="stNew2" autocomplete="new-password"></div>
@@ -491,8 +526,8 @@ const EMBEDDED=null; // BILR-EMBED — replace this whole line with your generat
 let customers=[];   // {name,gstin,email,phone,person,personNo,addr}
 let invoices=[];    // {no,date,customer,gstin,taxType,taxable,cgst,sgst,igst,total,status,notes}
 let lines=[];       // {no,desc,hsn,qty,rate,gst,taxable,gstAmt,total}
-let biz={name:"",addr:"",gstin:"",email:"",phone:"",prefix:"INV"};
-let username="",passHash="",theme=(function(){try{return localStorage.getItem("bilr.theme")==="light"?"light":"dark";}catch(_){return "dark";}})();
+let biz={name:"",addr:"",gstin:"",email:"",phone:"",prefix:"INV",logo:""};
+let users=[],currentUser=null,theme=(function(){try{return localStorage.getItem("bilr.theme")==="light"?"light":"dark";}catch(_){return "dark";}})();
 let storageMode="github";
 const gh={token:"",repo:"",path:"",branch:"main",sha:null};
 let dirty=false, sessionPass=null, profilePending=false, rememberDevice=true, creatingToGithub=false, fetchedProfile=null;
@@ -518,6 +553,9 @@ const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n;};
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function setDirty(v){dirty=v;const b=$("#btnSave");if(b&&!b.disabled){b.classList.toggle("dirty",dirty);b.textContent=dirty?"Save •":"Save";}}
 const stateCode=g=>{const m=String(g||"").trim().match(/^(\d{2})/);return m?m[1]:"";};
+const nowStamp=()=>{const d=new Date();return d.toISOString().slice(0,10)+" "+d.toTimeString().slice(0,5);};
+const findUser=id=>users.find(u=>u.user.toLowerCase()===String(id||"").trim().toLowerCase())||null;
+const isAdmin=()=>!!(currentUser&&currentUser.role==="Admin");
 const fyOf=d=>{const dt=new Date(d);const y=dt.getMonth()>=3?dt.getFullYear():dt.getFullYear()-1;return String(y%100).padStart(2,"0")+"-"+String((y+1)%100).padStart(2,"0");};
 
 /* Indian number → words */
@@ -545,6 +583,7 @@ function applyTheme(t,persist){
   document.documentElement.setAttribute("data-theme",theme);
   const b=$("#btnTheme");if(b)b.textContent=theme==="dark"?"🌙":"☀️";
   try{if(persist!==false)localStorage.setItem("bilr.theme",theme);}catch(_){}
+  if($("#app")&&$("#app").style.display==="block"){try{drawDashCharts();}catch(_){}}
 }
 
 /* ---------- hashing ---------- */
@@ -583,7 +622,7 @@ async function generateProfileObject(){
   const saltB64=abToB64(salt.buffer),ivB64=abToB64(iv.buffer);
   const key=await deriveKey(sessionPass,saltB64);
   const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,new TextEncoder().encode(gh.token));
-  return {repo:gh.repo,path:gh.path,branch:gh.branch,owner:biz.name,username,salt:saltB64,iv:ivB64,ct:abToB64(ct)};
+  return {repo:gh.repo,path:gh.path,branch:gh.branch,owner:biz.name,username:currentUser?currentUser.user:"",salt:saltB64,iv:ivB64,ct:abToB64(ct)};
 }
 async function saveProfile(pass){
   if(!canRemember()||!gh.token)return;
@@ -616,7 +655,7 @@ const SESSION_KEY="bilr.session.v1";
 const SESSION_MS=15*60*1000;
 function saveSession(){
   if(!gh.token)return;
-  try{localStorage.setItem(SESSION_KEY,btoa(JSON.stringify({t:gh.token,r:gh.repo,p:gh.path,b:gh.branch,e:Date.now()+SESSION_MS})));}catch(_){}
+  try{localStorage.setItem(SESSION_KEY,btoa(JSON.stringify({t:gh.token,r:gh.repo,p:gh.path,b:gh.branch,u:currentUser?currentUser.user:"",e:Date.now()+SESSION_MS})));}catch(_){}
 }
 function getSession(){
   try{const s=JSON.parse(atob(localStorage.getItem(SESSION_KEY)||""));return (s&&s.t&&s.e>Date.now())?s:null;}catch(_){return null;}
@@ -644,16 +683,17 @@ function parseWorkbook(buf){
   const find=w=>wb.SheetNames.find(n=>n.trim().toLowerCase()===w)||null;
   const g=(r,k)=>r[Object.keys(r).find(x=>x.trim().toLowerCase()===k)]??"";
 
-  customers=[];invoices=[];lines=[];
-  biz={name:"",addr:"",gstin:"",email:"",phone:"",prefix:"INV"};
-  username="";passHash="";
+  customers=[];invoices=[];lines=[];users=[];
+  biz={name:"",addr:"",gstin:"",email:"",phone:"",prefix:"INV",logo:""};
+  let legacyU="",legacyH="";
 
   const sC=find("customers");
   if(sC)XLSX.utils.sheet_to_json(wb.Sheets[sC],{defval:""}).forEach(r=>{
     customers.push({name:String(g(r,"name")||"").trim(),gstin:String(g(r,"gstin")||"").trim().toUpperCase(),
       email:String(g(r,"email")||"").trim(),phone:String(g(r,"phone")||"").trim(),
       person:String(g(r,"contact person")||"").trim(),personNo:String(g(r,"contact number")||"").trim(),
-      addr:String(g(r,"address")||"").trim()});
+      addr:String(g(r,"address")||"").trim(),
+      createdBy:String(g(r,"created by")||"").trim(),createdAt:String(g(r,"created at")||"").trim()});
   });
   customers=customers.filter(c=>c.name);
 
@@ -664,7 +704,8 @@ function parseWorkbook(buf){
       taxType:String(g(r,"tax type")||"CGST/SGST").trim(),
       taxable:num(g(r,"taxable value")),cgst:num(g(r,"cgst")),sgst:num(g(r,"sgst")),igst:num(g(r,"igst")),
       total:num(g(r,"total")),status:String(g(r,"status")||"Unpaid").trim()||"Unpaid",
-      notes:String(g(r,"notes")||"")});
+      notes:String(g(r,"notes")||""),
+      createdBy:String(g(r,"created by")||"").trim(),createdAt:String(g(r,"created at")||"").trim()});
   });
   invoices=invoices.filter(i=>i.no);
 
@@ -677,6 +718,7 @@ function parseWorkbook(buf){
   lines=lines.filter(l=>l.no);
 
   const sS=find("settings");
+  const logoChunks={};
   if(sS)XLSX.utils.sheet_to_json(wb.Sheets[sS],{defval:""}).forEach(r=>{
     const key=String(g(r,"key")).toLowerCase(),val=g(r,"value");
     if(key==="businessname"&&val)biz.name=String(val);
@@ -685,38 +727,62 @@ function parseWorkbook(buf){
     if(key==="businessemail"&&val)biz.email=String(val);
     if(key==="businessphone"&&val)biz.phone=String(val);
     if(key==="invoiceprefix"&&val)biz.prefix=String(val);
-    if(key==="username"&&val)username=String(val);
-    if(key==="passwordhash"&&val)passHash=String(val);
+    if(key==="username"&&val)legacyU=String(val);
+    if(key==="passwordhash"&&val)legacyH=String(val);
     if(key==="theme"&&val)applyTheme(String(val).toLowerCase()==="light"?"light":"dark");
+    if(/^logo\d+$/.test(key)&&val)logoChunks[key]=String(val);
   });
+  const chunkKeys=Object.keys(logoChunks).sort((a,b)=>parseInt(a.slice(4))-parseInt(b.slice(4)));
+  biz.logo=chunkKeys.map(k=>logoChunks[k]).join("");
+  if(biz.logo&&!biz.logo.startsWith("data:image/"))biz.logo="";
+
+  const sU=find("users");
+  if(sU)XLSX.utils.sheet_to_json(wb.Sheets[sU],{defval:""}).forEach(r=>{
+    users.push({user:String(g(r,"username")||"").trim(),
+      hash:String(g(r,"passwordhash")||g(r,"password hash")||"").trim(),
+      role:String(g(r,"role")||"User").trim()==="Admin"?"Admin":"User",
+      name:String(g(r,"name")||g(r,"display name")||"").trim()});
+  });
+  users=users.filter(u=>u.user&&u.hash);
+  if(!users.length&&legacyU&&legacyH)users=[{user:legacyU,hash:legacyH,role:"Admin",name:biz.name}];
+  if(users.length&&!users.some(u=>u.role==="Admin"))users[0].role="Admin";
   setDirty(false);
 }
 function loadWorkbook(buf){
   parseWorkbook(buf);
-  if(username&&passHash)showLogin();
+  if(users.length)showLogin();
   else showView("vSetCreds");
 }
 
 /* ---------- Excel build ---------- */
 function buildWorkbook(){
   const wb=XLSX.utils.book_new();
-  const wsC=XLSX.utils.json_to_sheet(customers.map(c=>({"Name":c.name,"GSTIN":c.gstin,"Email":c.email,"Phone":c.phone,"Contact Person":c.person,"Contact Number":c.personNo,"Address":c.addr})),
-    {header:["Name","GSTIN","Email","Phone","Contact Person","Contact Number","Address"]});
-  const wsI=XLSX.utils.json_to_sheet(invoices.map(i=>({"Invoice No":i.no,"Date":i.date,"Customer":i.customer,"GSTIN":i.gstin,"Tax Type":i.taxType,"Taxable Value":i.taxable,"CGST":i.cgst,"SGST":i.sgst,"IGST":i.igst,"Total":i.total,"Status":i.status,"Notes":i.notes})),
-    {header:["Invoice No","Date","Customer","GSTIN","Tax Type","Taxable Value","CGST","SGST","IGST","Total","Status","Notes"]});
+  const wsC=XLSX.utils.json_to_sheet(customers.map(c=>({"Name":c.name,"GSTIN":c.gstin,"Email":c.email,"Phone":c.phone,"Contact Person":c.person,"Contact Number":c.personNo,"Address":c.addr,"Created By":c.createdBy||"","Created At":c.createdAt||""})),
+    {header:["Name","GSTIN","Email","Phone","Contact Person","Contact Number","Address","Created By","Created At"]});
+  const wsI=XLSX.utils.json_to_sheet(invoices.map(i=>({"Invoice No":i.no,"Date":i.date,"Customer":i.customer,"GSTIN":i.gstin,"Tax Type":i.taxType,"Taxable Value":i.taxable,"CGST":i.cgst,"SGST":i.sgst,"IGST":i.igst,"Total":i.total,"Status":i.status,"Notes":i.notes,"Created By":i.createdBy||"","Created At":i.createdAt||""})),
+    {header:["Invoice No","Date","Customer","GSTIN","Tax Type","Taxable Value","CGST","SGST","IGST","Total","Status","Notes","Created By","Created At"]});
   const wsL=XLSX.utils.json_to_sheet(lines.map(l=>({"Invoice No":l.no,"Description":l.desc,"HSN/SAC":l.hsn,"Qty":l.qty,"Rate":l.rate,"GST %":l.gst,"Taxable":l.taxable,"GST Amount":l.gstAmt,"Total":l.total})),
     {header:["Invoice No","Description","HSN/SAC","Qty","Rate","GST %","Taxable","GST Amount","Total"]});
-  const wsS=XLSX.utils.json_to_sheet([
+  const settingsRows=[
     {Key:"BusinessName",Value:biz.name},{Key:"BusinessAddress",Value:biz.addr},{Key:"BusinessGSTIN",Value:biz.gstin},
     {Key:"BusinessEmail",Value:biz.email},{Key:"BusinessPhone",Value:biz.phone},{Key:"InvoicePrefix",Value:biz.prefix},
-    {Key:"Username",Value:username},{Key:"PasswordHash",Value:passHash},{Key:"Theme",Value:theme}]);
+    {Key:"Theme",Value:theme}];
+  if(biz.logo){
+    const CH=30000;
+    for(let i=0;i*CH<biz.logo.length;i++)settingsRows.push({Key:"Logo"+(i+1),Value:biz.logo.slice(i*CH,(i+1)*CH)});
+  }
+  const wsS=XLSX.utils.json_to_sheet(settingsRows);
   wsC["!cols"]=[{wch:26},{wch:18},{wch:24},{wch:14},{wch:18},{wch:14},{wch:38}];
-  wsI["!cols"]=[{wch:16},{wch:12},{wch:26},{wch:18},{wch:12},{wch:14},{wch:11},{wch:11},{wch:11},{wch:13},{wch:9},{wch:24}];
+  wsI["!cols"]=[{wch:16},{wch:12},{wch:26},{wch:18},{wch:12},{wch:14},{wch:11},{wch:11},{wch:11},{wch:13},{wch:9},{wch:24},{wch:12},{wch:17}];
   wsL["!cols"]=[{wch:16},{wch:30},{wch:10},{wch:7},{wch:11},{wch:7},{wch:12},{wch:12},{wch:13}];
   wsS["!cols"]=[{wch:16},{wch:60}];
   XLSX.utils.book_append_sheet(wb,wsC,"Customers");
   XLSX.utils.book_append_sheet(wb,wsI,"Invoices");
   XLSX.utils.book_append_sheet(wb,wsL,"Invoice Lines");
+  const wsU=XLSX.utils.json_to_sheet(users.map(u=>({"Username":u.user,"PasswordHash":u.hash,"Role":u.role,"Name":u.name})),
+    {header:["Username","PasswordHash","Role","Name"]});
+  wsU["!cols"]=[{wch:14},{wch:76},{wch:8},{wch:18}];
+  XLSX.utils.book_append_sheet(wb,wsU,"Users");
   XLSX.utils.book_append_sheet(wb,wsS,"Settings");
   return wb;
 }
@@ -770,16 +836,18 @@ function showView(id){
   if(id==="vSetCreds")$("#setCredsError").style.display="none";
 }
 function showLogin(){
-  $("#loginAvatar").textContent=(biz.name||username||"B").trim().charAt(0).toUpperCase();
+  $("#loginAvatar").textContent=(biz.name||"B").trim().charAt(0).toUpperCase();
   $("#loginTitle").textContent=biz.name?`Welcome back — ${biz.name}`:"Sign in";
   $("#loginError").style.display="none";
-  $("#lUser").value=username||"";$("#lPin").value="";
+  $("#lPin").value="";
   showView("vLogin");
-  setTimeout(()=>(username?$("#lPin"):$("#lUser")).focus(),50);
+  setTimeout(()=>($("#lUser").value?$("#lPin"):$("#lUser")).focus(),50);
 }
 function enterApp(){
   $("#authScreen").style.display="none";$("#app").style.display="block";
   $("#bizLabel").textContent=biz.name||"GST invoicing";
+  document.body.classList.toggle("role-admin",isAdmin());
+  $("#userChip").textContent=(currentUser.name||currentUser.user)+" · "+currentUser.role;
   saveSession();
   setDirty(dirty);
   resetBuilder();
@@ -820,7 +888,8 @@ $("#btnCreateGo").addEventListener("click",async()=>{
   if(pin!==pin2){err.textContent="Passwords don’t match.";err.style.display="block";return;}
   biz.name=$("#cBiz").value.trim();
   biz.gstin=$("#cGstin").value.trim().toUpperCase();
-  username=user;passHash=await hashPin(pin);sessionPass=pin;
+  users=[{user,hash:await hashPin(pin),role:"Admin",name:biz.name||user}];
+  currentUser={...users[0]};sessionPass=pin;
   customers=[];invoices=[];lines=[];
   if(rememberDevice&&gh.token)await saveProfile(pin);
   setDirty(true);enterApp();
@@ -843,14 +912,18 @@ $("#loginForm").addEventListener("submit",async e=>{
       const r=await ghLoad();
       if(r.notFound)throw new Error("Your register is missing from the repo — reconnect via “Connect a different repo”.");
       parseWorkbook(r.buf);
-      if(!(username&&passHash)){profilePending=false;showView("vSetCreds");return;}
-      if(u===username.trim().toLowerCase()&&await verifyPin(p,passHash)){
+      if(!users.length){profilePending=false;showView("vSetCreds");return;}
+      const rec=findUser(u);
+      if(rec&&await verifyPin(p,rec.hash)){
+        currentUser={...rec};
         profilePending=false;sessionPass=p;
         await saveProfile(p);
         enterApp();toast("Signed in ✓");
       }else throw new Error("bad");
     }else{
-      if(u===username.trim().toLowerCase()&&await verifyPin(p,passHash)){
+      const rec=findUser(u);
+      if(rec&&await verifyPin(p,rec.hash)){
+        currentUser={...rec};
         sessionPass=p;
         if(rememberDevice&&gh.token)await saveProfile(p);
         enterApp();toast("Signed in ✓");
@@ -874,7 +947,8 @@ $("#btnSetCreds").addEventListener("click",async()=>{
   if(!user){err.textContent="Choose a login ID.";err.style.display="block";return;}
   if(pin.length<4){err.textContent="Password must be at least 4 characters.";err.style.display="block";return;}
   if(pin!==pin2){err.textContent="Passwords don’t match.";err.style.display="block";return;}
-  username=user;passHash=await hashPin(pin);sessionPass=pin;
+  users=[{user,hash:await hashPin(pin),role:"Admin",name:biz.name||user}];
+  currentUser={...users[0]};sessionPass=pin;
   if(rememberDevice&&gh.token)await saveProfile(pin);
   setDirty(true);enterApp();
   toast("Login created — click “Save” to store it");
@@ -907,6 +981,54 @@ function renderAll(){[renderDash,renderInvs,renderCust,renderBuilder].forEach(fn
 
 function invGst(i){return r2(i.cgst+i.sgst+i.igst);}
 
+let charts={};
+function killChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+const PALETTE=["#7C8CFF","#F2B94B","#3DDCA3","#FF6E61","#5EE0E6","#E58BE0","#A3E635","#94A3B8"];
+function drawDashCharts(){
+  if(typeof Chart==="undefined"){
+    $$(".chart-box").forEach(b=>{if(!b.querySelector(".empty-note"))b.innerHTML='<div class="empty-note" style="color:var(--muted);font-size:.85rem;text-align:center;padding-top:4.5rem">Charts couldn’t load — check your connection and refresh.</div>';});
+    return;
+  }
+  const cs=getComputedStyle(document.documentElement);
+  Chart.defaults.color=(cs.getPropertyValue("--muted")||"#8E93B0").trim();
+  Chart.defaults.borderColor=(cs.getPropertyValue("--line")||"rgba(255,255,255,.08)").trim();
+  Chart.defaults.font.family="'Inter',sans-serif";
+  const border=(cs.getPropertyValue("--bg-2")||"#131530").trim();
+  const legendSide=window.innerWidth<700?"bottom":"right";
+
+  const months=[];const d=new Date();
+  for(let i=5;i>=0;i--){const x=new Date(d.getFullYear(),d.getMonth()-i,1);months.push(x.toISOString().slice(0,7));}
+  const labels=months.map(m=>new Date(m+"-01").toLocaleString(undefined,{month:"short"}));
+  const billed=months.map(m=>invoices.filter(x=>x.date.startsWith(m)).reduce((sm,x)=>sm+x.total,0));
+  const gstArr=months.map(m=>invoices.filter(x=>x.date.startsWith(m)).reduce((sm,x)=>sm+invGst(x),0));
+  killChart("bill");
+  charts.bill=new Chart($("#chBill"),{type:"bar",data:{labels,datasets:[
+    {label:"Billed",data:billed,backgroundColor:"#7C8CFF",borderRadius:6,maxBarThickness:26},
+    {label:"of which GST",data:gstArr,backgroundColor:"#F2B94B",borderRadius:6,maxBarThickness:26}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:"top",labels:{usePointStyle:true,pointStyle:"circle",boxWidth:7}},
+        tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmt(c.parsed.y)}`}}},
+      scales:{x:{grid:{display:false}},y:{beginAtZero:true,ticks:{callback:v=>new Intl.NumberFormat("en-IN",{notation:"compact"}).format(v)}}}}});
+
+  const paidAmt=invoices.filter(x=>x.status==="Paid").reduce((sm,x)=>sm+x.total,0);
+  const unpaidAmt=invoices.filter(x=>x.status!=="Paid").reduce((sm,x)=>sm+x.total,0);
+  killChart("paid");
+  charts.paid=new Chart($("#chPaid"),{type:"doughnut",
+    data:{labels:["Paid","Unpaid"],datasets:[{data:[paidAmt,unpaidAmt],backgroundColor:["#3DDCA3","#F2B94B"],borderWidth:2,borderColor:border}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:"62%",
+      plugins:{legend:{position:legendSide,labels:{usePointStyle:true,pointStyle:"circle",boxWidth:7,font:{size:11}}},
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${fmt(c.parsed)}`}}}}});
+
+  const byCust={};invoices.forEach(x=>byCust[x.customer]=(byCust[x.customer]||0)+x.total);
+  let entries=Object.entries(byCust).sort((a,b)=>b[1]-a[1]);
+  if(entries.length>5){const rest=entries.slice(5).reduce((sm,e2)=>sm+e2[1],0);entries=entries.slice(0,5);entries.push(["Others",rest]);}
+  killChart("top");
+  charts.top=new Chart($("#chTop"),{type:"doughnut",
+    data:{labels:entries.map(e2=>e2[0]),datasets:[{data:entries.map(e2=>e2[1]),backgroundColor:entries.map((_,ix)=>PALETTE[ix%PALETTE.length]),borderWidth:2,borderColor:border}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:"62%",
+      plugins:{legend:{position:legendSide,labels:{usePointStyle:true,pointStyle:"circle",boxWidth:7,font:{size:11}}},
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${fmt(c.parsed)}`}}}}});
+}
 function renderDash(){
   const mk=todayISO().slice(0,7);
   const monthInv=invoices.filter(i=>i.date.startsWith(mk));
@@ -924,6 +1046,7 @@ function renderDash(){
 
   const recent=[...invoices].sort((a,b)=>b.date.localeCompare(a.date)||b.no.localeCompare(a.no)).slice(0,6);
   $("#tblRecent tbody").innerHTML=recent.map(i=>invRowHTML(i,true)).join("");
+  try{drawDashCharts();}catch(e){console.error("charts",e);}
   $("#emptyRecent").style.display=invoices.length?"none":"block";
   $("#tblRecent").style.display=invoices.length?"":"none";
 }
@@ -932,18 +1055,18 @@ function invRowHTML(i,compact){
   const actions=`<div class="row-actions">
     <button type="button" class="icon-btn" data-inv="${esc(i.no)}" data-act="view">PDF</button>
     ${compact?"":`<button type="button" class="icon-btn" data-inv="${esc(i.no)}" data-act="togglePaid">${i.status==="Paid"?"Mark unpaid":"Mark paid"}</button>
-    <button type="button" class="icon-btn" data-inv="${esc(i.no)}" data-act="editInv">Edit</button>
-    <button type="button" class="icon-btn danger" data-inv="${esc(i.no)}" data-act="delInv">Delete</button>`}
+    <button type="button" class="icon-btn admin-only" data-inv="${esc(i.no)}" data-act="editInv">Edit</button>
+    <button type="button" class="icon-btn danger admin-only" data-inv="${esc(i.no)}" data-act="delInv">Delete</button>`}
   </div>`;
   if(compact)return `<tr>
-    <td data-l="Invoice"><strong style="font-family:var(--mono);font-size:.82rem">${esc(i.no)}</strong></td>
+    <td data-l="Invoice"><div><strong style="font-family:var(--mono);font-size:.82rem">${esc(i.no)}</strong>${i.createdBy?`<span class="made-by">by ${esc(i.createdBy)} · ${esc(i.createdAt)}</span>`:""}</div></td>
     <td data-l="Date">${esc(i.date)}</td>
     <td data-l="Customer">${esc(i.customer)}</td>
     <td data-l="Total" class="num">${fmt(i.total)}</td>
     <td data-l="Status"><span class="tag ${i.status==="Paid"?"paid":"unpaid"}">${esc(i.status)}</span></td>
     <td data-l="">${actions}</td></tr>`;
   return `<tr>
-    <td data-l="Invoice"><strong style="font-family:var(--mono);font-size:.82rem">${esc(i.no)}</strong></td>
+    <td data-l="Invoice"><div><strong style="font-family:var(--mono);font-size:.82rem">${esc(i.no)}</strong>${i.createdBy?`<span class="made-by">by ${esc(i.createdBy)} · ${esc(i.createdAt)}</span>`:""}</div></td>
     <td data-l="Date">${esc(i.date)}</td>
     <td data-l="Customer">${esc(i.customer)}</td>
     <td data-l="Taxable" class="num">${fmt(i.taxable)}</td>
@@ -991,15 +1114,15 @@ function renderCust(){
         <button type="button" class="icon-btn confirm" data-act="saveCust">Save</button>
         <button type="button" class="icon-btn" data-act="cancelCust">Cancel</button></div></td></tr>`;
     return `<tr data-i="${i}">
-      <td data-l="Name"><strong>${esc(c.name)}</strong>${c.personNo?`<span style="display:block;font-size:.72rem;color:var(--muted)">${esc(c.person)} · ${esc(c.personNo)}</span>`:""}</td>
+      <td data-l="Name"><div><strong>${esc(c.name)}</strong>${c.personNo?`<span style="display:block;font-size:.72rem;color:var(--muted)">${esc(c.person)} · ${esc(c.personNo)}</span>`:""}${c.createdBy?`<span class="made-by">by ${esc(c.createdBy)} · ${esc(c.createdAt)}</span>`:""}</div></td>
       <td data-l="GSTIN" style="font-family:var(--mono);font-size:.8rem">${esc(c.gstin)||"—"}</td>
       <td data-l="Contact">${esc(c.person)||"—"}</td>
       <td data-l="Phone">${esc(c.phone)||"—"}</td>
       <td data-l="Email" style="font-size:.82rem">${esc(c.email)||"—"}</td>
       <td data-l="Address" style="color:var(--muted);font-size:.82rem">${esc(c.addr)||"—"}</td>
       <td data-l=""><div class="row-actions">
-        <button type="button" class="icon-btn" data-act="editCust">Edit</button>
-        <button type="button" class="icon-btn danger" data-act="delCust">Delete</button></div></td></tr>`;
+        <button type="button" class="icon-btn admin-only" data-act="editCust">Edit</button>
+        <button type="button" class="icon-btn danger admin-only" data-act="delCust">Delete</button></div></td></tr>`;
   }).join("");
   $("#emptyCust").style.display=customers.length?"none":"block";
   $("#tblCust").style.display=customers.length?"":"none";
@@ -1012,7 +1135,7 @@ $("#formCust").addEventListener("submit",e=>{
   if(customers.some(c=>c.name.toLowerCase()===name.toLowerCase())){toast("A customer with that name already exists");return;}
   customers.push({name,gstin:$("#cuGstin").value.trim().toUpperCase(),email:$("#cuEmail").value.trim(),
     phone:$("#cuPhone").value.trim(),person:$("#cuPerson").value.trim(),personNo:$("#cuPersonNo").value.trim(),
-    addr:$("#cuAddr").value.trim()});
+    addr:$("#cuAddr").value.trim(),createdBy:currentUser.user,createdAt:nowStamp()});
   e.target.reset();setDirty(true);renderAll();
   toast("Customer added");
 });
@@ -1024,9 +1147,10 @@ document.addEventListener("click",e=>{
   const invNo=btn.dataset.inv;
   const inv=invNo?invoices.find(x=>x.no===invNo):null;
   switch(act){
-    case "editCust":editingCust=i;renderCust();break;
+    case "editCust":if(!isAdmin())return;editingCust=i;renderCust();break;
     case "cancelCust":editingCust=-1;renderCust();break;
     case "saveCust":{
+      if(!isAdmin())return;
       const c=customers[i];const oldName=c.name;
       c.name=tr.querySelector(".e-name").value.trim()||c.name;
       c.gstin=tr.querySelector(".e-gstin").value.trim().toUpperCase();
@@ -1038,6 +1162,7 @@ document.addEventListener("click",e=>{
       editingCust=-1;setDirty(true);renderAll();break;
     }
     case "delCust":{
+      if(!isAdmin())return;
       const c=customers[i];
       const used=invoices.some(v=>v.customer===c.name);
       if(used){toast("This customer has invoices — delete those first");return;}
@@ -1046,8 +1171,9 @@ document.addEventListener("click",e=>{
     }
     case "view":if(inv)openPrint(inv);break;
     case "togglePaid":if(inv){inv.status=inv.status==="Paid"?"Unpaid":"Paid";setDirty(true);renderAll();}break;
-    case "editInv":if(inv)loadInvoiceIntoBuilder(inv);break;
+    case "editInv":if(!isAdmin())return;if(inv)loadInvoiceIntoBuilder(inv);break;
     case "delInv":
+      if(!isAdmin())return;
       if(inv&&confirm(`Delete invoice ${inv.no}? Its lines are removed too on your next save.`)){
         invoices=invoices.filter(x=>x.no!==inv.no);
         lines=lines.filter(l=>l.no!==inv.no);
@@ -1170,12 +1296,14 @@ $("#btnSaveInv").addEventListener("click",()=>{
   const date=$("#nDate").value||todayISO();
   const t=builderTotals();
   const no=builder.editingNo||nextInvoiceNo(date);
+  const prev=invoices.find(x=>x.no===no);
   // remove previous version if editing
   invoices=invoices.filter(x=>x.no!==no);
   lines=lines.filter(l=>l.no!==no);
   invoices.push({no,date,customer:c.name,gstin:c.gstin,taxType:t.type,
     taxable:t.taxable,cgst:t.cgst,sgst:t.sgst,igst:t.igst,total:t.total,
-    status:"Unpaid",notes:$("#nNotes").value.trim()});
+    status:prev?prev.status:"Unpaid",notes:$("#nNotes").value.trim(),
+    createdBy:prev?prev.createdBy:currentUser.user,createdAt:prev?prev.createdAt:nowStamp()});
   validLines.forEach(l=>{
     const taxable=r2(num(l.qty)*num(l.rate));
     const gstAmt=r2(taxable*num(l.gst)/100);
@@ -1219,7 +1347,7 @@ function openPrint(inv){
   const igst=inv.taxType==="IGST";
   $("#printSheet").innerHTML=`
     <div class="ph">
-      <div><h1>${esc(biz.name||"Your Business")}</h1>
+      <div>${biz.logo?`<img src="${biz.logo}" alt="" style="height:52px;max-width:200px;object-fit:contain;display:block;margin-bottom:7px">`:""}<h1>${esc(biz.name||"Your Business")}</h1>
         <div class="muted">${esc(biz.addr)}</div>
         <div class="muted">${biz.gstin?"GSTIN: "+esc(biz.gstin):""}${biz.phone?" · "+esc(biz.phone):""}${biz.email?" · "+esc(biz.email):""}</div>
       </div>
@@ -1317,30 +1445,131 @@ $("#btnSettings").addEventListener("click",()=>{
   $("#settingsError").style.display="none";
   $("#stBiz").value=biz.name;$("#stAddr").value=biz.addr;$("#stGstin").value=biz.gstin;
   $("#stEmail").value=biz.email;$("#stPhone").value=biz.phone;$("#stPrefix").value=biz.prefix;
-  $("#stUser").value=username;
+  $("#stUser").value=currentUser.user;
   $("#stCur").value="";$("#stNew").value="";$("#stNew2").value="";
+  refreshLogoPreview();
+  renderUsersAdmin();
   $("#settingsOverlay").style.display="flex";
+});
+
+/* ---------- users & roles (admin) ---------- */
+function renderUsersAdmin(){
+  if(!isAdmin())return;
+  $("#usersList").innerHTML=users.map((u,i)=>`
+    <div style="display:flex;align-items:center;gap:.55rem;background:var(--wash);border:1px solid var(--line);border-radius:10px;padding:.5rem .7rem;flex-wrap:wrap">
+      <strong style="font-size:.86rem">${esc(u.name||u.user)}</strong>
+      <span style="font-family:var(--mono);font-size:.74rem;color:var(--muted)">${esc(u.user)}</span>
+      <span class="tag ${u.role==="Admin"?"paid":"igst"}">${u.role}</span>
+      <span style="margin-left:auto"></span>
+      <button type="button" class="icon-btn" data-uact="reset" data-i="${i}">Reset password</button>
+      <button type="button" class="icon-btn" data-uact="role" data-i="${i}">${u.role==="Admin"?"Make User":"Make Admin"}</button>
+      <button type="button" class="icon-btn danger" data-uact="del" data-i="${i}">Remove</button>
+    </div>`).join("");
+}
+document.addEventListener("click",async e=>{
+  const b=e.target.closest("[data-uact]");if(!b||!isAdmin())return;
+  const i=+b.dataset.i,u=users[i];if(!u)return;
+  const act=b.dataset.uact;
+  if(act==="reset"){
+    const nw=prompt(`New password for ${u.user}:`);
+    if(nw===null)return;
+    if(nw.length<4){toast("Password must be at least 4 characters");return;}
+    u.hash=await hashPin(nw);
+    if(currentUser.user.toLowerCase()===u.user.toLowerCase()){currentUser.hash=u.hash;sessionPass=nw;}
+    setDirty(true);toast("Password reset — click Save to store it");
+  }else if(act==="role"){
+    if(u.role==="Admin"&&users.filter(x=>x.role==="Admin").length===1){toast("Keep at least one Admin");return;}
+    u.role=u.role==="Admin"?"User":"Admin";
+    if(currentUser.user.toLowerCase()===u.user.toLowerCase()){
+      currentUser.role=u.role;
+      document.body.classList.toggle("role-admin",isAdmin());
+      $("#userChip").textContent=(currentUser.name||currentUser.user)+" · "+currentUser.role;
+    }
+    setDirty(true);renderUsersAdmin();renderAll();
+  }else if(act==="del"){
+    if(u.user.toLowerCase()===currentUser.user.toLowerCase()){toast("You can’t remove your own account");return;}
+    if(u.role==="Admin"&&users.filter(x=>x.role==="Admin").length===1){toast("Keep at least one Admin");return;}
+    if(confirm(`Remove user "${u.user}"? They can no longer sign in.`)){users.splice(i,1);setDirty(true);renderUsersAdmin();}
+  }
+});
+$("#btnAddUser").addEventListener("click",async()=>{
+  if(!isAdmin())return;
+  const id=$("#nuUser").value.trim(),nm=$("#nuName").value.trim(),pw=$("#nuPass").value,role=$("#nuRole").value;
+  const err=$("#settingsError");err.style.display="none";
+  if(!id){err.textContent="Enter a login ID for the new user.";err.style.display="block";return;}
+  if(findUser(id)){err.textContent="That login ID is already taken.";err.style.display="block";return;}
+  if(pw.length<4){err.textContent="Password must be at least 4 characters.";err.style.display="block";return;}
+  users.push({user:id,hash:await hashPin(pw),role:role==="Admin"?"Admin":"User",name:nm||id});
+  $("#nuUser").value="";$("#nuName").value="";$("#nuPass").value="";$("#nuRole").value="User";
+  setDirty(true);renderUsersAdmin();
+  toast("User added — click Save to store it");
+});
+
+/* ---------- company logo ---------- */
+function refreshLogoPreview(){
+  const img=$("#stLogoPreview");
+  if(biz.logo){img.src=biz.logo;img.style.display="inline-block";$("#btnLogoRemove").style.display="inline-block";}
+  else{img.style.display="none";$("#btnLogoRemove").style.display="none";}
+}
+$("#btnLogoPick").addEventListener("click",()=>$("#stLogoFile").click());
+$("#stLogoFile").addEventListener("change",()=>{
+  const f=$("#stLogoFile").files[0];
+  if(!f)return;
+  if(f.size>3*1024*1024){toast("Image too large — pick one under 3 MB");return;}
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const im=new Image();
+    im.onload=()=>{
+      const MAX=240;
+      const scale=Math.min(1,MAX/Math.max(im.width,im.height));
+      const w=Math.max(1,Math.round(im.width*scale)),h=Math.max(1,Math.round(im.height*scale));
+      const cv=document.createElement("canvas");cv.width=w;cv.height=h;
+      cv.getContext("2d").drawImage(im,0,0,w,h);
+      let url=cv.toDataURL("image/png");
+      if(url.length>200000)url=cv.toDataURL("image/jpeg",0.85); // fall back if PNG is heavy
+      if(url.length>200000){toast("That image compresses poorly — try a simpler logo");return;}
+      biz.logo=url;
+      refreshLogoPreview();
+      setDirty(true);
+      toast("Logo added — click Save to store it");
+    };
+    im.onerror=()=>toast("Couldn’t read that image file");
+    im.src=reader.result;
+  };
+  reader.readAsDataURL(f);
+  $("#stLogoFile").value="";
+});
+$("#btnLogoRemove").addEventListener("click",()=>{
+  biz.logo="";refreshLogoPreview();setDirty(true);
+  toast("Logo removed — click Save to store it");
 });
 $("#btnCloseSettings").addEventListener("click",()=>{$("#settingsOverlay").style.display="none";});
 $("#settingsOverlay").addEventListener("click",e=>{if(e.target.id==="settingsOverlay")$("#settingsOverlay").style.display="none";});
 $("#btnSettingsSave").addEventListener("click",async()=>{
   const err=$("#settingsError");err.style.display="none";
+  const rec=users.find(x=>x.user.toLowerCase()===currentUser.user.toLowerCase());
+  if(!rec){err.textContent="Your account record is missing — sign out and back in.";err.style.display="block";return;}
   const user=$("#stUser").value.trim();
   if(!user){err.textContent="Login ID can’t be empty.";err.style.display="block";return;}
+  if(user.toLowerCase()!==rec.user.toLowerCase()&&findUser(user)){err.textContent="That login ID is already taken.";err.style.display="block";return;}
   const cur=$("#stCur").value,nw=$("#stNew").value,nw2=$("#stNew2").value;
   let passwordChanged=false;
   if(nw||nw2||cur){
-    if(!cur||!(await verifyPin(cur,passHash))){err.textContent="Current password is wrong.";err.style.display="block";return;}
+    if(!cur||!(await verifyPin(cur,rec.hash))){err.textContent="Current password is wrong.";err.style.display="block";return;}
     if(nw.length<4){err.textContent="New password must be at least 4 characters.";err.style.display="block";return;}
     if(nw!==nw2){err.textContent="New passwords don’t match.";err.style.display="block";return;}
-    passHash=await hashPin(nw);sessionPass=nw;passwordChanged=true;
+    rec.hash=await hashPin(nw);sessionPass=nw;passwordChanged=true;
   }
-  biz.name=$("#stBiz").value.trim();biz.addr=$("#stAddr").value.trim();
-  biz.gstin=$("#stGstin").value.trim().toUpperCase();
-  biz.email=$("#stEmail").value.trim();biz.phone=$("#stPhone").value.trim();
-  biz.prefix=($("#stPrefix").value.trim()||"INV");
-  username=user;
+  rec.user=user;
+  currentUser={...rec};
+  if(isAdmin()){
+    biz.name=$("#stBiz").value.trim();biz.addr=$("#stAddr").value.trim();
+    biz.gstin=$("#stGstin").value.trim().toUpperCase();
+    biz.email=$("#stEmail").value.trim();biz.phone=$("#stPhone").value.trim();
+    biz.prefix=($("#stPrefix").value.trim()||"INV");
+  }
   $("#bizLabel").textContent=biz.name||"GST invoicing";
+  $("#userChip").textContent=(currentUser.name||currentUser.user)+" · "+currentUser.role;
   if(gh.token&&sessionPass)await saveProfile(sessionPass);
   setDirty(true);
   $("#settingsOverlay").style.display="none";
@@ -1395,9 +1624,13 @@ applyTheme(theme,false);
       const r=await ghLoad();
       if(!r.notFound){
         parseWorkbook(r.buf);
-        saveSession();
-        enterApp();
-        return;
+        const rec=findUser(s.u);
+        if(rec){
+          currentUser={...rec};
+          saveSession();
+          enterApp();
+          return;
+        }
       }
     }catch(_){/* fall through */}
     clearSession();
@@ -1409,7 +1642,6 @@ applyTheme(theme,false);
   if(!p){fetchedProfile=await loadRemoteConfig();p=fetchedProfile;}
   if(!p)return;
   profilePending=true;
-  username=p.username||"";
   gh.repo=p.repo;gh.path=p.path;gh.branch=p.branch;
   $("#loginAvatar").textContent=(p.owner||p.username||"B").trim().charAt(0).toUpperCase();
   $("#loginTitle").textContent=p.owner?`Welcome back — ${p.owner}`:"Sign in";
