@@ -1421,8 +1421,8 @@ $("#exportOverlay").addEventListener("click",e=>{if(e.target.id==="exportOverlay
 $("#btnExpRegister").addEventListener("click",()=>{
   const rows=exportRange();
   if(!rows.length){toast("No invoices in that period");return;}
-  const out=[["Invoice No","Date","Customer","GSTIN","Tax Type","Taxable Value","CGST","SGST","IGST","Total GST","Grand Total","Status","Notes"]];
-  rows.forEach(i=>out.push([i.no,i.date,i.customer,i.gstin,i.taxType,i.taxable,i.cgst,i.sgst,i.igst,invGst(i),i.total,i.status,i.notes]));
+  const out=[["INVOICE NO","DATE","GSTIN","PARTY","TAXABLE AMT","IGST","CGST","SGST","TOTAL"]];
+  rows.forEach(i=>out.push([i.no,i.date,i.gstin,i.customer,i.taxable,i.igst,i.cgst,i.sgst,i.total]));
   downloadCSV(`invoice-register_${$("#expFrom").value||"all"}_${$("#expTo").value||"all"}.csv`,out);
   toast("Register downloaded ✓");
 });
