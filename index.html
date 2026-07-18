@@ -1,0 +1,1423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Bilr — GST invoicing</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0E0F1E">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0E0F1E; --bg-2:#131530;
+    --card:rgba(255,255,255,.035); --card-solid:#181A38;
+    --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.15);
+    --text:#EBEDF8; --muted:#8E93B0;
+    --indigo:#7C8CFF; --indigo-dim:rgba(124,140,255,.14);
+    --gold:#F2B94B; --gold-dim:rgba(242,185,75,.15);
+    --mint:#3DDCA3; --mint-dim:rgba(61,220,163,.14);
+    --coral:#FF6E61; --coral-dim:rgba(255,110,97,.14);
+    --grad:linear-gradient(135deg,#7C8CFF 0%,#F2B94B 100%);
+    --wash:rgba(255,255,255,.04); --wash-strong:rgba(255,255,255,.055);
+    --wash-hover:rgba(255,255,255,.08); --row-hover:rgba(255,255,255,.025);
+    --page-bg:radial-gradient(900px 500px at 85% -10%, rgba(124,140,255,.14), transparent 60%),radial-gradient(800px 500px at -10% 110%, rgba(242,185,75,.09), transparent 60%),var(--bg);
+    --r-lg:20px; --r-md:14px;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 20px 50px rgba(0,0,0,.35);
+  }
+  [data-theme="light"]{
+    --bg:#F0F1F7; --bg-2:#FFFFFF;
+    --card:#FFFFFF; --card-solid:#FFFFFF;
+    --line:rgba(24,28,60,.10); --line-strong:rgba(24,28,60,.18);
+    --text:#1B2140; --muted:#5D6480;
+    --indigo:#5265E8; --gold:#B8862B; --mint:#0C9B72; --coral:#E2523F;
+    --indigo-dim:rgba(82,101,232,.11); --gold-dim:rgba(184,134,43,.13);
+    --mint-dim:rgba(12,155,114,.12); --coral-dim:rgba(226,82,63,.12);
+    --wash:rgba(24,28,60,.05); --wash-strong:rgba(24,28,60,.08);
+    --wash-hover:rgba(24,28,60,.11); --row-hover:rgba(24,28,60,.035);
+    --shadow:0 18px 44px rgba(30,36,70,.14);
+    --page-bg:radial-gradient(900px 500px at 85% -10%, rgba(82,101,232,.09), transparent 60%),radial-gradient(800px 500px at -10% 110%, rgba(184,134,43,.07), transparent 60%),var(--bg);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{font-size:16px;-webkit-text-size-adjust:100%}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--page-bg);color:var(--text);min-height:100vh}
+  button{font-family:inherit;cursor:pointer}
+  input,select,textarea{font-family:inherit;font-size:16px;color:var(--text)}
+  ::placeholder{color:#666D8F}
+  h1,h2,h3{font-family:'Sora',sans-serif}
+  .grad-text{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+  /* ---------- auth ---------- */
+  .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1.2rem}
+  .auth-card{width:100%;max-width:460px;background:var(--card-solid);border:1px solid var(--line);border-radius:24px;padding:2rem;box-shadow:var(--shadow)}
+  .logo{display:flex;align-items:center;gap:.6rem;margin-bottom:1.5rem}
+  .logo-mark{width:38px;height:38px;border-radius:12px;background:var(--grad);display:grid;place-items:center;font-family:'Sora';font-weight:800;color:#0E0F1E;font-size:1.1rem;flex-shrink:0}
+  .logo b{font-family:'Sora';font-weight:800;font-size:1.15rem;letter-spacing:-.02em}
+  .logo span{font-size:.68rem;color:var(--muted);display:block;letter-spacing:.08em;text-transform:uppercase}
+  .auth-card h2{font-size:1.5rem;font-weight:700;letter-spacing:-.02em;line-height:1.2;margin-bottom:.5rem}
+  .auth-card .sub{color:var(--muted);font-size:.88rem;line-height:1.55;margin-bottom:1.4rem}
+  .stack{display:flex;flex-direction:column;gap:.7rem}
+  .btn{border-radius:12px;padding:.85rem 1.2rem;font-size:.95rem;font-weight:600;border:1px solid var(--line-strong);background:var(--wash);color:var(--text);transition:background .15s;display:flex;align-items:center;justify-content:center;gap:.5rem;width:100%;min-height:48px}
+  .btn:hover{background:var(--wash-hover)}
+  .btn.primary{background:var(--grad);border:none;color:#0E0F1E}
+  .btn.primary:hover{filter:brightness(1.07)}
+  .btn.ghost{background:none;border:none;color:var(--muted);font-weight:500;font-size:.85rem;min-height:40px}
+  .btn.ghost:hover{color:var(--text)}
+  .btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,.pill:focus-visible,.icon-btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .auth-note{font-size:.74rem;color:var(--muted);margin-top:1.3rem;line-height:1.55;text-align:center}
+  .f{margin-bottom:.85rem}
+  .f label{display:block;font-size:.7rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:.35rem}
+  .f label i{font-style:normal;text-transform:none;color:#666D8F;font-weight:500}
+  .f input,.f select,.f textarea{width:100%;background:var(--wash);border:1px solid var(--line);border-radius:11px;padding:.72rem .85rem}
+  .f input:focus,.f select:focus,.f textarea:focus{border-color:var(--gold)}
+  .f select option{background:var(--card-solid)}
+  .f .hint{font-size:.72rem;color:#666D8F;margin-top:.3rem;line-height:1.4}
+  .auth-error{background:var(--coral-dim);border:1px solid rgba(255,110,97,.35);color:var(--coral);border-radius:10px;padding:.6rem .8rem;font-size:.83rem;margin-bottom:.9rem;display:none}
+  .unlock-avatar{width:60px;height:60px;border-radius:50%;background:var(--grad);margin:0 auto 1rem;display:grid;place-items:center;font-family:'Sora';font-weight:800;font-size:1.4rem;color:#0E0F1E}
+  .mode-badge{display:inline-flex;align-items:center;gap:.4rem;font-size:.72rem;color:var(--muted);background:var(--wash-strong);border:1px solid var(--line);border-radius:999px;padding:.28rem .7rem;margin-bottom:1rem}
+
+  /* ---------- shell ---------- */
+  #app{display:none;max-width:1180px;margin:0 auto;padding:1rem 1.1rem calc(3.5rem + env(safe-area-inset-bottom))}
+  .topbar{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding:.3rem 0 1rem}
+  .topbar .logo{margin:0;margin-right:auto}
+  .top-btn{border:1px solid var(--line-strong);background:var(--wash);color:var(--text);border-radius:11px;padding:.55rem .95rem;font-size:.85rem;font-weight:600;min-height:42px}
+  .top-btn:hover{background:var(--wash-hover)}
+  .top-btn.save{background:var(--grad);border:none;color:#0E0F1E}
+  .top-btn.save:hover{filter:brightness(1.07)}
+  .top-btn.save:disabled{opacity:.6;cursor:wait}
+  .top-btn.save.dirty{background:var(--gold);box-shadow:0 0 0 3px var(--gold-dim)}
+  nav.pills{display:flex;gap:.45rem;margin-bottom:1.3rem;overflow-x:auto;padding-bottom:.25rem;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  nav.pills::-webkit-scrollbar{display:none}
+  .pill{border:1px solid var(--line);background:var(--wash);color:var(--muted);border-radius:999px;padding:.55rem 1.05rem;font-size:.87rem;font-weight:600;display:flex;align-items:center;gap:.45rem;white-space:nowrap;flex-shrink:0;min-height:42px}
+  .pill:hover{color:var(--text);border-color:var(--line-strong)}
+  .pill.active{background:var(--grad);border-color:transparent;color:#0E0F1E}
+  .panel{display:none;animation:fade .25s ease}
+  .panel.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(205px,1fr));gap:.8rem;margin-bottom:1rem}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.05rem 1.15rem;position:relative;overflow:hidden}
+  .kpi::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--kc,var(--indigo))}
+  .kpi.gold{--kc:var(--gold)} .kpi.mint{--kc:var(--mint)} .kpi.coral{--kc:var(--coral)}
+  .kpi .label{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .kpi .value{font-family:var(--mono);font-size:1.4rem;font-weight:600;margin-top:.35rem;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .kpi .sub{font-size:.76rem;color:var(--muted);margin-top:.25rem}
+
+  .section-head{display:flex;align-items:center;gap:.7rem;margin-bottom:.9rem;flex-wrap:wrap}
+  .section-head h2{font-size:1.3rem;font-weight:700;letter-spacing:-.02em}
+  .section-head .total{font-family:var(--mono);color:var(--muted);font-size:.85rem}
+  .section-head .spacer{margin-left:auto}
+  .add-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:1rem;display:grid;gap:.75rem;margin-bottom:1rem;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));align-items:end}
+  .add-card .f{margin:0}
+  .add-card .wide{grid-column:1/-1}
+  .btn-accent{background:var(--grad);color:#0E0F1E;border:none;border-radius:11px;padding:.78rem 1.1rem;font-weight:700;font-size:.9rem;min-height:46px}
+  .btn-accent:hover{filter:brightness(1.07)}
+  .btn-line{background:var(--wash);color:var(--text);border:1px solid var(--line-strong);border-radius:11px;padding:.7rem 1rem;font-weight:600;font-size:.87rem;min-height:44px}
+  .btn-line:hover{background:var(--wash-hover)}
+  .toolbar{display:flex;gap:.55rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap}
+  .toolbar input[type="search"],.toolbar input[type="date"],.toolbar select{background:var(--wash);border:1px solid var(--line);border-radius:10px;padding:.55rem .75rem;min-height:42px}
+  .toolbar input[type="search"]{flex:1;min-width:150px;max-width:300px}
+  .toolbar select option{background:var(--card-solid)}
+  .toolbar .sum{margin-left:auto;font-family:var(--mono);font-size:.8rem;color:var(--muted)}
+
+  .table-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);overflow-x:auto}
+  table{width:100%;border-collapse:collapse;min-width:680px}
+  th{text-align:left;font-size:.67rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:.75rem .9rem;border-bottom:1px solid var(--line);font-weight:600}
+  td{padding:.6rem .9rem;border-bottom:1px solid var(--line);font-size:.88rem;vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:var(--row-hover)}
+  td.num{font-family:var(--mono);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .tag{font-size:.7rem;font-weight:600;border-radius:999px;padding:.2rem .65rem;white-space:nowrap}
+  .tag.paid{background:var(--mint-dim);color:var(--mint)}
+  .tag.unpaid{background:var(--gold-dim);color:var(--gold)}
+  .tag.igst{background:var(--indigo-dim);color:var(--indigo)}
+  .tag.cgst{background:var(--mint-dim);color:var(--mint)}
+  td input,td select{background:var(--wash-strong);border:1px solid var(--line-strong);border-radius:8px;padding:.45rem .5rem;width:100%;min-width:70px}
+  td select option{background:var(--card-solid)}
+  .row-actions{display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap}
+  .icon-btn{border:1px solid var(--line);background:transparent;border-radius:8px;padding:.42rem .7rem;font-size:.76rem;color:var(--muted);min-height:36px}
+  .icon-btn:hover{border-color:var(--line-strong);color:var(--text)}
+  .icon-btn.danger:hover{border-color:var(--coral);color:var(--coral)}
+  .icon-btn.confirm{background:var(--mint);border-color:var(--mint);color:#0E0F1E;font-weight:700}
+  .empty{text-align:center;color:var(--muted);padding:2.2rem 1rem;font-size:.9rem;line-height:1.55}
+
+  /* ---------- invoice builder ---------- */
+  .inv-totals{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:1rem 1.15rem;margin-top:1rem;max-width:420px;margin-left:auto}
+  .inv-totals .row{display:flex;justify-content:space-between;padding:.35rem 0;font-size:.9rem}
+  .inv-totals .row span:last-child{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .inv-totals .grand{border-top:1px solid var(--line-strong);margin-top:.4rem;padding-top:.6rem;font-weight:700;font-size:1.05rem}
+  .inv-meta{font-family:var(--mono);font-size:.85rem;background:var(--wash-strong);border:1px solid var(--line);border-radius:10px;padding:.6rem .8rem;display:inline-block}
+
+  /* ---------- overlays ---------- */
+  .overlay{display:none;position:fixed;inset:0;background:rgba(6,7,16,.72);z-index:60;align-items:flex-start;justify-content:center;padding:1.2rem;backdrop-filter:blur(4px);overflow:auto}
+  .overlay .auth-card{margin:auto}
+
+  #toast{position:fixed;bottom:calc(1.2rem + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%) translateY(20px);background:var(--card-solid);border:1px solid var(--line-strong);color:var(--text);border-radius:12px;padding:.75rem 1.2rem;font-size:.87rem;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:90;max-width:92vw;box-shadow:var(--shadow)}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* ---------- printable invoice ---------- */
+  #printOverlay{display:none;position:fixed;inset:0;background:rgba(6,7,16,.8);z-index:70;overflow:auto;padding:1.2rem}
+  .print-actions{max-width:820px;margin:0 auto .8rem;display:flex;gap:.6rem;justify-content:flex-end}
+  #printSheet{max-width:820px;margin:0 auto;background:#fff;color:#111;border-radius:8px;padding:34px 38px;font-size:13.5px;line-height:1.45;font-family:'Inter',Arial,sans-serif}
+  #printSheet h1{font-size:20px;margin:0;font-family:'Sora',Arial}
+  #printSheet .ph{display:flex;justify-content:space-between;gap:16px;border-bottom:2px solid #1B2140;padding-bottom:12px;margin-bottom:14px;flex-wrap:wrap}
+  #printSheet .muted{color:#666;font-size:12px}
+  #printSheet .blocks{display:flex;justify-content:space-between;gap:16px;margin-bottom:14px;flex-wrap:wrap}
+  #printSheet .block{min-width:230px}
+  #printSheet .block b{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#888;margin-bottom:4px}
+  #printSheet table{width:100%;border-collapse:collapse;min-width:0;margin:6px 0 10px}
+  #printSheet th{background:#F1F2F8;color:#333;font-size:11px;padding:7px 8px;border:1px solid #DDD;text-transform:uppercase;letter-spacing:.05em}
+  #printSheet td{padding:7px 8px;border:1px solid #DDD;font-size:12.5px;color:#222}
+  #printSheet td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  #printSheet .totals{margin-left:auto;width:300px}
+  #printSheet .totals .r{display:flex;justify-content:space-between;padding:3px 0;font-size:13px}
+  #printSheet .totals .g{border-top:2px solid #1B2140;margin-top:5px;padding-top:7px;font-weight:700;font-size:15px}
+  #printSheet .words{background:#F7F7FB;border:1px solid #E4E4EE;border-radius:6px;padding:8px 10px;font-size:12px;margin:10px 0}
+  #printSheet .foot{display:flex;justify-content:space-between;align-items:flex-end;margin-top:28px;font-size:12px;color:#555;flex-wrap:wrap;gap:12px}
+  #printSheet .sig{text-align:center}
+  #printSheet .sig .line{border-top:1px solid #999;width:190px;margin-top:44px;padding-top:5px}
+  @media print{
+    body>*{display:none!important}
+    #printOverlay{display:block!important;position:static;background:#fff;padding:0}
+    .print-actions{display:none!important}
+    #printSheet{border-radius:0;max-width:none;padding:0}
+    @page{margin:14mm}
+  }
+
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+  /* ---------- mobile ---------- */
+  @media (max-width:640px){
+    .auth-card{padding:1.5rem}
+    .kpis{grid-template-columns:1fr 1fr;gap:.6rem}
+    .kpi .value{font-size:1.15rem}
+    .table-card{overflow:visible;background:none;border:none;border-radius:0}
+    table{min-width:0;display:block}
+    thead{display:none}
+    tbody{display:block}
+    tbody tr{display:block;background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);margin-bottom:.65rem;padding:.3rem .95rem}
+    tbody tr:hover{background:var(--card)}
+    td{display:flex;justify-content:space-between;align-items:center;gap:.8rem;border-bottom:1px dashed var(--line);padding:.55rem 0}
+    td:last-child{border-bottom:none}
+    td::before{content:attr(data-l);color:var(--muted);font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;font-weight:600;flex-shrink:0}
+    td[data-l=""]{justify-content:flex-end}
+    td[data-l=""]::before{display:none}
+    td.num{text-align:right}
+    td input,td select{max-width:62%}
+    .toolbar .sum{margin-left:0;width:100%}
+    #lineTable tbody tr{padding:.3rem .8rem}
+    .inv-totals{max-width:none}
+  }
+</style>
+</head>
+<body>
+
+<!-- ======================= AUTH ======================= -->
+<div class="auth-wrap" id="authScreen">
+  <div class="auth-card">
+
+    <div class="a-view" id="vResume" style="display:none;text-align:center">
+      <div class="logo" style="justify-content:center"><div class="logo-mark">B</div><div><b>Bilr</b><span>GST invoicing</span></div></div>
+      <p class="sub" style="text-align:center;margin-bottom:0">Resuming your session…</p>
+    </div>
+
+    <div class="a-view" id="vLanding">
+      <div class="logo"><div class="logo-mark">B</div><div><b>Bilr</b><span>GST invoicing</span></div></div>
+      <h2>Invoices &amp; customers,<br><span class="grad-text">GST-ready.</span></h2>
+      <p class="sub">Customers, GST invoices with CGST/SGST or IGST, PDF export and a full register — synced securely to your private GitHub repo.</p>
+      <div class="stack"><button class="btn primary" id="goGithub">Connect GitHub repo</button></div>
+      <p class="auth-note">One-time setup per device — after that, this page opens straight at your sign-in.</p>
+    </div>
+
+    <div class="a-view" id="vGithub" style="display:none">
+      <div class="logo"><div class="logo-mark">B</div><div><b>Bilr</b><span>GitHub sync</span></div></div>
+      <h2>Connect your repo</h2>
+      <p class="sub">Bilr reads and saves your data through the GitHub API. Use a <b>private</b> repo — it holds your business data.</p>
+      <div class="auth-error" id="ghError"></div>
+      <div class="f"><label for="ghToken">Personal access token</label>
+        <input type="password" id="ghToken" placeholder="github_pat_…" autocomplete="off">
+        <div class="hint">Fine-grained token, limited to this one repo, permission “Contents: read &amp; write”. It stays on your device only.</div></div>
+      <div class="f"><label for="ghRepo">Repository</label><input type="text" id="ghRepo" placeholder="username/my-invoices" autocomplete="off"></div>
+      <div class="f"><label for="ghPath">File path in repo</label><input type="text" id="ghPath" value="invoices.xlsx" autocomplete="off"></div>
+      <div class="f"><label for="ghBranch">Branch</label><input type="text" id="ghBranch" value="main" autocomplete="off"></div>
+      <div class="f" style="display:flex;align-items:flex-start;gap:.55rem">
+        <input type="checkbox" id="ghRemember" checked style="width:auto;margin-top:.15rem;accent-color:var(--gold)">
+        <label for="ghRemember" style="margin:0;text-transform:none;letter-spacing:0;font-size:.78rem;font-weight:500;color:var(--muted);line-height:1.45">Remember this connection on this device — the token is stored encrypted with your login password.</label>
+      </div>
+      <div class="stack">
+        <button class="btn primary" id="ghConnect">Connect &amp; load</button>
+        <button class="btn ghost" data-back>← Back</button>
+      </div>
+    </div>
+
+    <div class="a-view" id="vCreate" style="display:none">
+      <div class="logo"><div class="logo-mark">B</div><div><b>Bilr</b><span>New database</span></div></div>
+      <h2>Set up your business</h2>
+      <p class="sub" id="createSub">Creates a fresh register with Customers, Invoices and Invoice Lines. Your login is stored securely inside it.</p>
+      <div class="auth-error" id="createError"></div>
+      <div class="f"><label for="cBiz">Business name</label><input type="text" id="cBiz" placeholder="e.g. Sanjo Enterprises" autocomplete="off"></div>
+      <div class="f"><label for="cGstin">Business GSTIN <i>(optional)</i></label><input type="text" id="cGstin" placeholder="e.g. 29ABCDE1234F1Z5" autocomplete="off" style="text-transform:uppercase"></div>
+      <div class="f"><label for="cUser">Login ID</label><input type="text" id="cUser" autocomplete="username"></div>
+      <div class="f"><label for="cPin">Password</label><input type="password" id="cPin" autocomplete="new-password"></div>
+      <div class="f"><label for="cPin2">Confirm password</label><input type="password" id="cPin2" autocomplete="new-password"></div>
+      <div class="stack">
+        <button class="btn primary" id="btnCreateGo">Create my register</button>
+        <button class="btn ghost" data-back>← Back</button>
+      </div>
+      <p class="auth-note">Keep your repo private — anyone with access to it can read your data.</p>
+    </div>
+
+    <div class="a-view" id="vLogin" style="display:none">
+      <div class="unlock-avatar" id="loginAvatar">•</div>
+      <h2 style="text-align:center" id="loginTitle">Sign in</h2>
+      <p class="sub" style="text-align:center">Sign in to open your invoice register.</p>
+      <div style="text-align:center"><span class="mode-badge">🔒 Private &amp; secure</span></div>
+      <div class="auth-error" id="loginError">Wrong login ID or password — try again.</div>
+      <form id="loginForm">
+        <div class="f"><label for="lUser">Login ID</label><input type="text" id="lUser" autocomplete="username" required></div>
+        <div class="f"><label for="lPin">Password</label><input type="password" id="lPin" autocomplete="current-password" required></div>
+        <div class="stack">
+          <button class="btn primary" type="submit" id="loginSubmitBtn">Sign in</button>
+          <button class="btn ghost" type="button" data-back>Connect a different repo</button>
+          <button class="btn ghost" type="button" id="btnForget" style="display:none">Forget saved connection on this device</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="a-view" id="vSetCreds" style="display:none">
+      <div class="logo"><div class="logo-mark">B</div><div><b>Bilr</b><span>Secure this register</span></div></div>
+      <h2>Create your login</h2>
+      <p class="sub">This register doesn’t have a login yet. Set one now — it’s stored securely on your next save.</p>
+      <div class="auth-error" id="setCredsError"></div>
+      <div class="f"><label for="sUser">Login ID</label><input type="text" id="sUser" autocomplete="username"></div>
+      <div class="f"><label for="sPin">Password</label><input type="password" id="sPin" autocomplete="new-password"></div>
+      <div class="f"><label for="sPin2">Confirm password</label><input type="password" id="sPin2" autocomplete="new-password"></div>
+      <div class="stack">
+        <button class="btn primary" id="btnSetCreds">Save login &amp; continue</button>
+        <button class="btn ghost" data-back>← Back</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ======================= APP ======================= -->
+<main id="app">
+  <div class="topbar">
+    <div class="logo"><div class="logo-mark">B</div><div><b>Bilr</b><span id="bizLabel">GST invoicing</span></div></div>
+    <button class="top-btn" id="btnTheme" title="Switch light / dark">🌙</button>
+    <button class="top-btn" id="btnSettings">Settings</button>
+    <button class="top-btn" id="btnLock">Sign out</button>
+    <button class="top-btn save" id="btnSave">Save</button>
+  </div>
+
+  <nav class="pills">
+    <button class="pill active" data-tab="home">Dashboard</button>
+    <button class="pill" data-tab="invs">Invoices</button>
+    <button class="pill" data-tab="new">＋ New Invoice</button>
+    <button class="pill" data-tab="cust">Customers</button>
+  </nav>
+
+  <!-- ============ DASHBOARD ============ -->
+  <section class="panel active" id="panel-home">
+    <div class="kpis">
+      <div class="kpi"><div class="label">Billed · this month</div><div class="value" id="kMonth">—</div><div class="sub" id="kMonthSub"></div></div>
+      <div class="kpi gold"><div class="label">Outstanding (unpaid)</div><div class="value" id="kDue">—</div><div class="sub" id="kDueSub"></div></div>
+      <div class="kpi mint"><div class="label">GST collected · this FY</div><div class="value" id="kGst">—</div><div class="sub" id="kGstSub"></div></div>
+      <div class="kpi coral"><div class="label">Customers</div><div class="value" id="kCust">—</div><div class="sub" id="kCustSub"></div></div>
+    </div>
+    <div class="section-head"><h2>Recent invoices</h2></div>
+    <div class="table-card">
+      <table id="tblRecent"><thead><tr><th>Invoice</th><th>Date</th><th>Customer</th><th style="text-align:right">Total</th><th>Status</th><th></th></tr></thead><tbody></tbody></table>
+      <div class="empty" id="emptyRecent" style="display:none">No invoices yet — create your first one from the “＋ New Invoice” tab.</div>
+    </div>
+  </section>
+
+  <!-- ============ INVOICES ============ -->
+  <section class="panel" id="panel-invs">
+    <div class="section-head"><h2>Invoices</h2><span class="total" id="invTotalHead"></span>
+      <span class="spacer"></span>
+      <button class="btn-line" id="btnExport">⇩ Export register</button>
+    </div>
+    <div class="toolbar">
+      <input type="search" id="searchInv" placeholder="Search invoice no / customer…">
+      <input type="date" id="fromInv" title="From date">
+      <input type="date" id="toInv" title="To date">
+      <select id="filterInvStatus"><option value="">All statuses</option><option>Unpaid</option><option>Paid</option></select>
+      <span class="sum" id="invFilteredSum"></span>
+    </div>
+    <div class="table-card">
+      <table id="tblInvs"><thead><tr><th>Invoice</th><th>Date</th><th>Customer</th><th style="text-align:right">Taxable</th><th style="text-align:right">GST</th><th style="text-align:right">Total</th><th>Tax</th><th>Status</th><th></th></tr></thead><tbody></tbody></table>
+      <div class="empty" id="emptyInvs" style="display:none">No invoices in this range.</div>
+    </div>
+  </section>
+
+  <!-- ============ NEW / EDIT INVOICE ============ -->
+  <section class="panel" id="panel-new">
+    <div class="section-head"><h2 id="builderTitle">New Invoice</h2>
+      <span class="inv-meta" id="invNoDisplay">—</span>
+    </div>
+    <div class="add-card">
+      <div class="f"><label for="nCust">Customer</label><select id="nCust"></select></div>
+      <div class="f"><label for="nDate">Invoice date</label><input type="date" id="nDate"></div>
+      <div class="f"><label for="nTax">Tax type</label>
+        <select id="nTax"><option value="auto">Auto (from GSTIN state)</option><option value="CGST/SGST">CGST + SGST (intra-state)</option><option value="IGST">IGST (inter-state)</option></select></div>
+      <div class="f"><label for="nNotes">Notes on invoice <i>(optional)</i></label><input type="text" id="nNotes" placeholder="e.g. Payment due in 15 days"></div>
+    </div>
+
+    <div class="section-head"><h3 style="font-size:1.02rem;font-weight:700">Line items</h3></div>
+    <div class="table-card" style="margin-bottom:.9rem">
+      <table id="lineTable"><thead><tr><th>Description</th><th>HSN/SAC</th><th style="text-align:right">Qty</th><th style="text-align:right">Rate</th><th>GST %</th><th style="text-align:right">Amount</th><th></th></tr></thead><tbody></tbody></table>
+    </div>
+    <button class="btn-line" id="btnAddLine">＋ Add line</button>
+
+    <div class="inv-totals">
+      <div class="row"><span>Taxable value</span><span id="tTaxable">₹0.00</span></div>
+      <div class="row" id="rowCgst"><span>CGST</span><span id="tCgst">₹0.00</span></div>
+      <div class="row" id="rowSgst"><span>SGST</span><span id="tSgst">₹0.00</span></div>
+      <div class="row" id="rowIgst" style="display:none"><span>IGST</span><span id="tIgst">₹0.00</span></div>
+      <div class="row grand"><span>Grand total</span><span id="tGrand">₹0.00</span></div>
+    </div>
+
+    <div class="toolbar" style="margin-top:1rem;justify-content:flex-end">
+      <button class="btn-line" id="btnCancelInv" style="display:none">Cancel edit</button>
+      <button class="btn-accent" id="btnSaveInv">Save invoice</button>
+    </div>
+    <p class="auth-note" style="text-align:left" id="builderHint">Saving adds it to the register — then click the top “Save” to store everything to your repo.</p>
+  </section>
+
+  <!-- ============ CUSTOMERS ============ -->
+  <section class="panel" id="panel-cust">
+    <div class="section-head"><h2>Customers</h2><span class="total" id="custTotalHead"></span></div>
+    <form class="add-card" id="formCust">
+      <div class="f"><label for="cuName">Customer / business name</label><input type="text" id="cuName" required></div>
+      <div class="f"><label for="cuGstin">GSTIN <i>(blank for unregistered)</i></label><input type="text" id="cuGstin" placeholder="e.g. 27ABCDE1234F1Z5" style="text-transform:uppercase"></div>
+      <div class="f"><label for="cuEmail">Email</label><input type="email" id="cuEmail"></div>
+      <div class="f"><label for="cuPhone">Phone</label><input type="tel" id="cuPhone"></div>
+      <div class="f"><label for="cuPerson">Contact person</label><input type="text" id="cuPerson"></div>
+      <div class="f"><label for="cuPersonNo">Contact number</label><input type="tel" id="cuPersonNo"></div>
+      <div class="f wide"><label for="cuAddr">Address</label><input type="text" id="cuAddr" placeholder="Street, city, state, PIN"></div>
+      <div class="f"><button type="submit" class="btn-accent" style="width:100%">+ Add customer</button></div>
+    </form>
+    <div class="toolbar"><input type="search" id="searchCust" placeholder="Search customers…"></div>
+    <div class="table-card">
+      <table id="tblCust"><thead><tr><th>Name</th><th>GSTIN</th><th>Contact</th><th>Phone</th><th>Email</th><th>Address</th><th></th></tr></thead><tbody></tbody></table>
+      <div class="empty" id="emptyCust" style="display:none">No customers yet — add your first one above. You’ll pick from this list when creating invoices.</div>
+    </div>
+  </section>
+</main>
+
+<!-- ============ EXPORT MODAL ============ -->
+<div class="overlay" id="exportOverlay">
+  <div class="auth-card" style="max-width:440px">
+    <h2 style="font-size:1.25rem;margin-bottom:.5rem">Export invoice register</h2>
+    <p class="sub">Downloads CSV files for the selected period — open them in Excel or share with your accountant for GST filing.</p>
+    <div class="f"><label for="expFrom">From</label><input type="date" id="expFrom"></div>
+    <div class="f"><label for="expTo">To</label><input type="date" id="expTo"></div>
+    <div class="stack">
+      <button class="btn primary" id="btnExpRegister">Download register (one row per invoice)</button>
+      <button class="btn" id="btnExpLines">Download line items (HSN-wise detail)</button>
+      <button class="btn ghost" id="btnCloseExport">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SETTINGS MODAL ============ -->
+<div class="overlay" id="settingsOverlay">
+  <div class="auth-card" style="max-width:500px;max-height:92vh;overflow:auto">
+    <h2 style="font-size:1.25rem;margin-bottom:.5rem">Settings</h2>
+    <p class="sub">Business details appear on every invoice. Changes are stored on your next Save.</p>
+    <div class="auth-error" id="settingsError"></div>
+    <div class="f"><label for="stBiz">Business name</label><input type="text" id="stBiz"></div>
+    <div class="f"><label for="stAddr">Business address</label><textarea id="stAddr" rows="2" style="resize:vertical"></textarea></div>
+    <div class="f"><label for="stGstin">Business GSTIN</label><input type="text" id="stGstin" style="text-transform:uppercase"></div>
+    <div class="f"><label for="stEmail">Email</label><input type="email" id="stEmail"></div>
+    <div class="f"><label for="stPhone">Phone</label><input type="tel" id="stPhone"></div>
+    <div class="f"><label for="stPrefix">Invoice number prefix</label><input type="text" id="stPrefix" placeholder="INV"><div class="hint">Numbers look like PREFIX/25-26/0001, restarting each financial year (Apr–Mar).</div></div>
+    <div class="f" style="border-top:1px solid var(--line);padding-top:1rem;margin-top:1.1rem"><label for="stUser">Login ID</label><input type="text" id="stUser" autocomplete="username"></div>
+    <div class="f"><label for="stCur">Current password <i>(only to change password)</i></label><input type="password" id="stCur" autocomplete="current-password"></div>
+    <div class="f"><label for="stNew">New password</label><input type="password" id="stNew" autocomplete="new-password"></div>
+    <div class="f"><label for="stNew2">Confirm new password</label><input type="password" id="stNew2" autocomplete="new-password"></div>
+    <div class="stack">
+      <button class="btn primary" id="btnSettingsSave">Update settings</button>
+      <button class="btn" id="btnEmbed">Get device setup code</button>
+      <button class="btn ghost" id="btnCloseSettings">Close</button>
+    </div>
+    <p class="auth-note">If you change your password, generate and upload a fresh setup file afterwards — the old one only opens with the old password.</p>
+  </div>
+</div>
+
+<!-- ============ DEVICE SETUP MODAL ============ -->
+<div class="overlay" id="embedOverlay">
+  <div class="auth-card" style="max-width:560px;max-height:92vh;overflow:auto">
+    <h2 style="font-size:1.25rem;margin-bottom:.5rem">Use Bilr on all your devices</h2>
+    <p class="sub"><b>Easiest way:</b> download the setup file and upload it to your website repo, next to index.html. Every device then opens straight at sign-in. The file holds your connection <b>encrypted with your password</b>.</p>
+    <div class="stack" style="margin-bottom:1.2rem"><button class="btn primary" id="btnDownloadCfg">Download setup file (bilr-config.json)</button></div>
+    <p class="sub" style="font-size:.8rem;margin-bottom:1rem">Upload: website repo → <b>Add file → Upload files</b> → drop in <b>bilr-config.json</b> → Commit.</p>
+    <div class="f"><label>Alternative: paste this line into index.html <i>(replaces the BILR-EMBED line)</i></label>
+      <textarea id="embedCode" readonly rows="5" style="width:100%;background:var(--wash-strong);border:1px solid var(--line);border-radius:11px;padding:.7rem .8rem;font-family:var(--mono);font-size:.72rem;resize:vertical"></textarea></div>
+    <div class="stack">
+      <button class="btn" id="btnCopyEmbed">Copy code</button>
+      <button class="btn ghost" id="btnCloseEmbed">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PRINT / PDF ============ -->
+<div id="printOverlay">
+  <div class="print-actions">
+    <button class="btn-accent" id="btnDoPrint">Download PDF / Print</button>
+    <button class="btn-line" id="btnClosePrint" style="background:#fff;color:#111">Close</button>
+  </div>
+  <div id="printSheet"></div>
+</div>
+
+<div id="toast" role="status"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   Bilr — GST invoicing & customer management.
+   Data synced to a private GitHub repo as an Excel workbook.
+   To open every device straight at sign-in, use Settings →
+   device setup code, or upload bilr-config.json to the site repo.
+============================================================ */
+const EMBEDDED=null; // BILR-EMBED — replace this whole line with your generated connection code
+
+let customers=[];   // {name,gstin,email,phone,person,personNo,addr}
+let invoices=[];    // {no,date,customer,gstin,taxType,taxable,cgst,sgst,igst,total,status,notes}
+let lines=[];       // {no,desc,hsn,qty,rate,gst,taxable,gstAmt,total}
+let biz={name:"",addr:"",gstin:"",email:"",phone:"",prefix:"INV"};
+let username="",passHash="",theme=(function(){try{return localStorage.getItem("bilr.theme")==="light"?"light":"dark";}catch(_){return "dark";}})();
+let storageMode="github";
+const gh={token:"",repo:"",path:"",branch:"main",sha:null};
+let dirty=false, sessionPass=null, profilePending=false, rememberDevice=true, creatingToGithub=false, fetchedProfile=null;
+let editingCust=-1;
+let builder={editingNo:null,lines:[]}; // invoice builder state
+const GST_RATES=[0,0.25,3,5,12,18,28];
+
+const $=s=>document.querySelector(s);
+const $$=s=>[...document.querySelectorAll(s)];
+
+/* ---------- helpers ---------- */
+const fmt=n=>new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",maximumFractionDigits:2}).format(n||0);
+const r2=n=>Math.round((n+Number.EPSILON)*100)/100;
+function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),2800);}
+const todayISO=()=>new Date().toISOString().slice(0,10);
+function normDate(v){
+  if(v instanceof Date&&!isNaN(v))return v.toISOString().slice(0,10);
+  if(typeof v==="number"){const d=XLSX.SSF.parse_date_code(v);if(d)return `${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`;}
+  if(typeof v==="string"&&v.trim()){const d=new Date(v);if(!isNaN(d))return d.toISOString().slice(0,10);}
+  return "";
+}
+const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n;};
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function setDirty(v){dirty=v;const b=$("#btnSave");if(b&&!b.disabled){b.classList.toggle("dirty",dirty);b.textContent=dirty?"Save •":"Save";}}
+const stateCode=g=>{const m=String(g||"").trim().match(/^(\d{2})/);return m?m[1]:"";};
+const fyOf=d=>{const dt=new Date(d);const y=dt.getMonth()>=3?dt.getFullYear():dt.getFullYear()-1;return String(y%100).padStart(2,"0")+"-"+String((y+1)%100).padStart(2,"0");};
+
+/* Indian number → words */
+function inWords(n){
+  n=Math.round(n);
+  if(n===0)return "Zero Rupees Only";
+  const a=["","One","Two","Three","Four","Five","Six","Seven","Eight","Nine","Ten","Eleven","Twelve","Thirteen","Fourteen","Fifteen","Sixteen","Seventeen","Eighteen","Nineteen"];
+  const b=["","","Twenty","Thirty","Forty","Fifty","Sixty","Seventy","Eighty","Ninety"];
+  const two=x=>x<20?a[x]:b[Math.floor(x/10)]+(x%10?" "+a[x%10]:"");
+  const three=x=>(x>=100?a[Math.floor(x/100)]+" Hundred"+(x%100?" ":""):"")+(x%100?two(x%100):"");
+  let out="";
+  const cr=Math.floor(n/1e7);n%=1e7;
+  const lk=Math.floor(n/1e5);n%=1e5;
+  const th=Math.floor(n/1e3);n%=1e3;
+  if(cr)out+=three(cr)+" Crore ";
+  if(lk)out+=two(lk)+" Lakh ";
+  if(th)out+=two(th)+" Thousand ";
+  if(n)out+=three(n);
+  return out.trim()+" Rupees Only";
+}
+
+/* ---------- theme ---------- */
+function applyTheme(t,persist){
+  theme=t==="light"?"light":"dark";
+  document.documentElement.setAttribute("data-theme",theme);
+  const b=$("#btnTheme");if(b)b.textContent=theme==="dark"?"🌙":"☀️";
+  try{if(persist!==false)localStorage.setItem("bilr.theme",theme);}catch(_){}
+}
+
+/* ---------- hashing ---------- */
+function djb2(str){let h=5381;for(let i=0;i<str.length;i++)h=((h<<5)+h+str.charCodeAt(i))>>>0;return "djb2:"+h.toString(16);}
+async function hashPin(pin){
+  const salted="bilr::"+pin;
+  if(crypto&&crypto.subtle){
+    try{
+      const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(salted));
+      return "sha256:"+[...new Uint8Array(buf)].map(x=>x.toString(16).padStart(2,"0")).join("");
+    }catch(_){}}
+  return djb2(salted);
+}
+async function verifyPin(pin,stored){
+  if(String(stored).startsWith("djb2:"))return djb2("bilr::"+pin)===stored;
+  return (await hashPin(pin))===stored;
+}
+
+/* ---------- base64 ---------- */
+function abToB64(buf){const bytes=new Uint8Array(buf);let bin="";for(let i=0;i<bytes.length;i+=0x8000)bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000));return btoa(bin);}
+function b64ToAb(b64){const bin=atob(b64.replace(/\s/g,""));const bytes=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);return bytes.buffer;}
+
+/* ---------- device profile (token encrypted with password) ---------- */
+const PROFILE_KEY="bilr.profile.v1";
+const canRemember=()=>{try{return !!(window.localStorage&&crypto&&crypto.subtle);}catch(_){return false;}};
+function getProfile(){try{const p=JSON.parse(localStorage.getItem(PROFILE_KEY));return p&&p.repo&&p.ct?p:null;}catch(_){return null;}}
+function clearProfile(){try{localStorage.removeItem(PROFILE_KEY);}catch(_){}}
+async function deriveKey(pass,saltB64){
+  const salt=new Uint8Array(b64ToAb(saltB64));
+  const base=await crypto.subtle.importKey("raw",new TextEncoder().encode(pass),"PBKDF2",false,["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:150000,hash:"SHA-256"},base,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+}
+async function generateProfileObject(){
+  const salt=crypto.getRandomValues(new Uint8Array(16));
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const saltB64=abToB64(salt.buffer),ivB64=abToB64(iv.buffer);
+  const key=await deriveKey(sessionPass,saltB64);
+  const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,new TextEncoder().encode(gh.token));
+  return {repo:gh.repo,path:gh.path,branch:gh.branch,owner:biz.name,username,salt:saltB64,iv:ivB64,ct:abToB64(ct)};
+}
+async function saveProfile(pass){
+  if(!canRemember()||!gh.token)return;
+  try{
+    const prev=sessionPass;sessionPass=pass;
+    const obj=await generateProfileObject();
+    sessionPass=prev??pass;
+    localStorage.setItem(PROFILE_KEY,JSON.stringify(obj));
+  }catch(e){console.warn("Could not remember this device",e);}
+}
+async function decryptProfileToken(p,pass){
+  const key=await deriveKey(pass,p.salt);
+  const iv=new Uint8Array(b64ToAb(p.iv));
+  const buf=await crypto.subtle.decrypt({name:"AES-GCM",iv},key,b64ToAb(p.ct));
+  return new TextDecoder().decode(buf);
+}
+const embeddedProfile=()=>(EMBEDDED&&typeof EMBEDDED==="object"&&EMBEDDED.ct)?EMBEDDED:null;
+async function loadRemoteConfig(){
+  try{
+    const res=await fetch("bilr-config.json?v="+Date.now(),{cache:"no-store"});
+    if(!res.ok)return null;
+    const j=await res.json();
+    return (j&&j.repo&&j.ct)?j:null;
+  }catch(_){return null;}
+}
+function profileCandidates(){return [getProfile(),embeddedProfile(),fetchedProfile].filter(Boolean);}
+
+/* ---------- session: survives refresh, 15-min idle timeout ---------- */
+const SESSION_KEY="bilr.session.v1";
+const SESSION_MS=15*60*1000;
+function saveSession(){
+  if(!gh.token)return;
+  try{localStorage.setItem(SESSION_KEY,btoa(JSON.stringify({t:gh.token,r:gh.repo,p:gh.path,b:gh.branch,e:Date.now()+SESSION_MS})));}catch(_){}
+}
+function getSession(){
+  try{const s=JSON.parse(atob(localStorage.getItem(SESSION_KEY)||""));return (s&&s.t&&s.e>Date.now())?s:null;}catch(_){return null;}
+}
+function clearSession(){try{localStorage.removeItem(SESSION_KEY);}catch(_){}}
+function touchSession(){
+  const now=Date.now();
+  if(touchSession._last&&now-touchSession._last<30000)return;
+  touchSession._last=now;
+  if($("#app").style.display==="block")saveSession();
+}
+["click","keydown","touchstart","scroll"].forEach(ev=>window.addEventListener(ev,touchSession,{passive:true}));
+setInterval(()=>{
+  if($("#app").style.display!=="block")return;
+  if(!getSession()){
+    clearSession();sessionPass=null;
+    toast("Signed out after 15 minutes of inactivity");
+    showLogin();
+  }
+},30000);
+
+/* ---------- Excel read ---------- */
+function parseWorkbook(buf){
+  const wb=XLSX.read(buf,{type:"array",cellDates:true});
+  const find=w=>wb.SheetNames.find(n=>n.trim().toLowerCase()===w)||null;
+  const g=(r,k)=>r[Object.keys(r).find(x=>x.trim().toLowerCase()===k)]??"";
+
+  customers=[];invoices=[];lines=[];
+  biz={name:"",addr:"",gstin:"",email:"",phone:"",prefix:"INV"};
+  username="";passHash="";
+
+  const sC=find("customers");
+  if(sC)XLSX.utils.sheet_to_json(wb.Sheets[sC],{defval:""}).forEach(r=>{
+    customers.push({name:String(g(r,"name")||"").trim(),gstin:String(g(r,"gstin")||"").trim().toUpperCase(),
+      email:String(g(r,"email")||"").trim(),phone:String(g(r,"phone")||"").trim(),
+      person:String(g(r,"contact person")||"").trim(),personNo:String(g(r,"contact number")||"").trim(),
+      addr:String(g(r,"address")||"").trim()});
+  });
+  customers=customers.filter(c=>c.name);
+
+  const sI=find("invoices");
+  if(sI)XLSX.utils.sheet_to_json(wb.Sheets[sI],{defval:""}).forEach(r=>{
+    invoices.push({no:String(g(r,"invoice no")||"").trim(),date:normDate(g(r,"date"))||todayISO(),
+      customer:String(g(r,"customer")||"").trim(),gstin:String(g(r,"gstin")||"").trim().toUpperCase(),
+      taxType:String(g(r,"tax type")||"CGST/SGST").trim(),
+      taxable:num(g(r,"taxable value")),cgst:num(g(r,"cgst")),sgst:num(g(r,"sgst")),igst:num(g(r,"igst")),
+      total:num(g(r,"total")),status:String(g(r,"status")||"Unpaid").trim()||"Unpaid",
+      notes:String(g(r,"notes")||"")});
+  });
+  invoices=invoices.filter(i=>i.no);
+
+  const sL=find("invoice lines");
+  if(sL)XLSX.utils.sheet_to_json(wb.Sheets[sL],{defval:""}).forEach(r=>{
+    lines.push({no:String(g(r,"invoice no")||"").trim(),desc:String(g(r,"description")||"").trim(),
+      hsn:String(g(r,"hsn/sac")||g(r,"hsn")||"").trim(),qty:num(g(r,"qty"))||1,rate:num(g(r,"rate")),
+      gst:num(g(r,"gst %")||g(r,"gst")),taxable:num(g(r,"taxable")),gstAmt:num(g(r,"gst amount")),total:num(g(r,"total"))});
+  });
+  lines=lines.filter(l=>l.no);
+
+  const sS=find("settings");
+  if(sS)XLSX.utils.sheet_to_json(wb.Sheets[sS],{defval:""}).forEach(r=>{
+    const key=String(g(r,"key")).toLowerCase(),val=g(r,"value");
+    if(key==="businessname"&&val)biz.name=String(val);
+    if(key==="businessaddress"&&val)biz.addr=String(val);
+    if(key==="businessgstin"&&val)biz.gstin=String(val).toUpperCase();
+    if(key==="businessemail"&&val)biz.email=String(val);
+    if(key==="businessphone"&&val)biz.phone=String(val);
+    if(key==="invoiceprefix"&&val)biz.prefix=String(val);
+    if(key==="username"&&val)username=String(val);
+    if(key==="passwordhash"&&val)passHash=String(val);
+    if(key==="theme"&&val)applyTheme(String(val).toLowerCase()==="light"?"light":"dark");
+  });
+  setDirty(false);
+}
+function loadWorkbook(buf){
+  parseWorkbook(buf);
+  if(username&&passHash)showLogin();
+  else showView("vSetCreds");
+}
+
+/* ---------- Excel build ---------- */
+function buildWorkbook(){
+  const wb=XLSX.utils.book_new();
+  const wsC=XLSX.utils.json_to_sheet(customers.map(c=>({"Name":c.name,"GSTIN":c.gstin,"Email":c.email,"Phone":c.phone,"Contact Person":c.person,"Contact Number":c.personNo,"Address":c.addr})),
+    {header:["Name","GSTIN","Email","Phone","Contact Person","Contact Number","Address"]});
+  const wsI=XLSX.utils.json_to_sheet(invoices.map(i=>({"Invoice No":i.no,"Date":i.date,"Customer":i.customer,"GSTIN":i.gstin,"Tax Type":i.taxType,"Taxable Value":i.taxable,"CGST":i.cgst,"SGST":i.sgst,"IGST":i.igst,"Total":i.total,"Status":i.status,"Notes":i.notes})),
+    {header:["Invoice No","Date","Customer","GSTIN","Tax Type","Taxable Value","CGST","SGST","IGST","Total","Status","Notes"]});
+  const wsL=XLSX.utils.json_to_sheet(lines.map(l=>({"Invoice No":l.no,"Description":l.desc,"HSN/SAC":l.hsn,"Qty":l.qty,"Rate":l.rate,"GST %":l.gst,"Taxable":l.taxable,"GST Amount":l.gstAmt,"Total":l.total})),
+    {header:["Invoice No","Description","HSN/SAC","Qty","Rate","GST %","Taxable","GST Amount","Total"]});
+  const wsS=XLSX.utils.json_to_sheet([
+    {Key:"BusinessName",Value:biz.name},{Key:"BusinessAddress",Value:biz.addr},{Key:"BusinessGSTIN",Value:biz.gstin},
+    {Key:"BusinessEmail",Value:biz.email},{Key:"BusinessPhone",Value:biz.phone},{Key:"InvoicePrefix",Value:biz.prefix},
+    {Key:"Username",Value:username},{Key:"PasswordHash",Value:passHash},{Key:"Theme",Value:theme}]);
+  wsC["!cols"]=[{wch:26},{wch:18},{wch:24},{wch:14},{wch:18},{wch:14},{wch:38}];
+  wsI["!cols"]=[{wch:16},{wch:12},{wch:26},{wch:18},{wch:12},{wch:14},{wch:11},{wch:11},{wch:11},{wch:13},{wch:9},{wch:24}];
+  wsL["!cols"]=[{wch:16},{wch:30},{wch:10},{wch:7},{wch:11},{wch:7},{wch:12},{wch:12},{wch:13}];
+  wsS["!cols"]=[{wch:16},{wch:60}];
+  XLSX.utils.book_append_sheet(wb,wsC,"Customers");
+  XLSX.utils.book_append_sheet(wb,wsI,"Invoices");
+  XLSX.utils.book_append_sheet(wb,wsL,"Invoice Lines");
+  XLSX.utils.book_append_sheet(wb,wsS,"Settings");
+  return wb;
+}
+
+/* ---------- GitHub API ---------- */
+const ghUrl=()=>`https://api.github.com/repos/${gh.repo}/contents/${gh.path.replace(/^\/+/,"")}`;
+const ghHeaders=()=>({"Authorization":"Bearer "+gh.token,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"});
+async function ghLoad(){
+  const res=await fetch(ghUrl()+"?ref="+encodeURIComponent(gh.branch),{headers:ghHeaders()});
+  if(res.status===404)return {notFound:true};
+  if(res.status===401||res.status===403)throw new Error("GitHub rejected the token. Check it has “Contents: read & write” on "+gh.repo+".");
+  if(!res.ok)throw new Error("GitHub error "+res.status+". Check the repo name, path and branch.");
+  const json=await res.json();
+  gh.sha=json.sha;
+  return {buf:b64ToAb(json.content)};
+}
+async function ghCommit(buf){
+  const body={message:"Bilr: update "+gh.path+" ("+new Date().toISOString()+")",content:abToB64(buf),branch:gh.branch};
+  if(gh.sha)body.sha=gh.sha;
+  const res=await fetch(ghUrl(),{method:"PUT",headers:{...ghHeaders(),"Content-Type":"application/json"},body:JSON.stringify(body)});
+  if(res.status===409||res.status===422){
+    const cur=await fetch(ghUrl()+"?ref="+encodeURIComponent(gh.branch),{headers:ghHeaders()});
+    if(cur.ok){gh.sha=(await cur.json()).sha;body.sha=gh.sha;
+      const retry=await fetch(ghUrl(),{method:"PUT",headers:{...ghHeaders(),"Content-Type":"application/json"},body:JSON.stringify(body)});
+      if(!retry.ok)throw new Error("Commit failed ("+retry.status+") — the file changed in the repo. Reload and try again.");
+      gh.sha=(await retry.json()).content.sha;return;
+    }
+    throw new Error("Commit conflict — the file changed in the repo. Reload before saving.");
+  }
+  if(!res.ok)throw new Error("GitHub commit failed ("+res.status+").");
+  gh.sha=(await res.json()).content.sha;
+}
+
+/* ---------- save ---------- */
+async function saveFile(){
+  const btn=$("#btnSave");btn.disabled=true;btn.classList.remove("dirty");btn.textContent="Saving…";
+  try{
+    const wb=buildWorkbook();
+    const buf=XLSX.write(wb,{bookType:"xlsx",type:"array"});
+    await ghCommit(buf);
+    setDirty(false);toast("Saved ✓");
+  }catch(err){
+    if(!(err&&err.name==="AbortError")){console.error(err);toast(err.message||"Could not save.");}
+  }finally{btn.disabled=false;setDirty(dirty);}
+}
+
+/* ---------- auth flow ---------- */
+function showView(id){
+  $("#authScreen").style.display="flex";$("#app").style.display="none";
+  $$(".a-view").forEach(v=>v.style.display=v.id===id?"block":"none");
+  if(id==="vSetCreds")$("#setCredsError").style.display="none";
+}
+function showLogin(){
+  $("#loginAvatar").textContent=(biz.name||username||"B").trim().charAt(0).toUpperCase();
+  $("#loginTitle").textContent=biz.name?`Welcome back — ${biz.name}`:"Sign in";
+  $("#loginError").style.display="none";
+  $("#lUser").value=username||"";$("#lPin").value="";
+  showView("vLogin");
+  setTimeout(()=>(username?$("#lPin"):$("#lUser")).focus(),50);
+}
+function enterApp(){
+  $("#authScreen").style.display="none";$("#app").style.display="block";
+  $("#bizLabel").textContent=biz.name||"GST invoicing";
+  saveSession();
+  setDirty(dirty);
+  resetBuilder();
+  renderAll();
+}
+
+$("#goGithub").addEventListener("click",()=>{$("#ghError").style.display="none";showView("vGithub");});
+$$("[data-back]").forEach(b=>b.addEventListener("click",()=>{profilePending=false;showView("vLanding");}));
+
+$("#ghConnect").addEventListener("click",async()=>{
+  const err=$("#ghError");err.style.display="none";
+  gh.token=$("#ghToken").value.trim();
+  gh.repo=$("#ghRepo").value.trim().replace(/^https:\/\/github\.com\//,"").replace(/\/+$/,"");
+  gh.path=$("#ghPath").value.trim().replace(/^\/+/,"");
+  gh.branch=$("#ghBranch").value.trim()||"main";
+  gh.sha=null;
+  rememberDevice=$("#ghRemember").checked;
+  if(!gh.token||!gh.repo||!gh.path){err.textContent="Token, repository and file path are all required.";err.style.display="block";return;}
+  const b=$("#ghConnect");b.disabled=true;b.textContent="Connecting…";
+  try{
+    const r=await ghLoad();
+    if(r.notFound){
+      creatingToGithub=true;
+      $("#createError").style.display="none";
+      $("#createSub").textContent="No register found in that repo yet — set up a new one and it will be stored there on your first save.";
+      showView("vCreate");
+    }else loadWorkbook(r.buf);
+  }catch(e){err.textContent=e.message;err.style.display="block";}
+  finally{b.disabled=false;b.textContent="Connect & load";}
+});
+
+$("#btnCreateGo").addEventListener("click",async()=>{
+  const err=$("#createError");
+  const user=$("#cUser").value.trim(),pin=$("#cPin").value,pin2=$("#cPin2").value;
+  if(!$("#cBiz").value.trim()){err.textContent="Enter your business name.";err.style.display="block";return;}
+  if(!user){err.textContent="Choose a login ID.";err.style.display="block";return;}
+  if(pin.length<4){err.textContent="Password must be at least 4 characters.";err.style.display="block";return;}
+  if(pin!==pin2){err.textContent="Passwords don’t match.";err.style.display="block";return;}
+  biz.name=$("#cBiz").value.trim();
+  biz.gstin=$("#cGstin").value.trim().toUpperCase();
+  username=user;passHash=await hashPin(pin);sessionPass=pin;
+  customers=[];invoices=[];lines=[];
+  if(rememberDevice&&gh.token)await saveProfile(pin);
+  setDirty(true);enterApp();
+  toast("All set — click “Save” to store your new register");
+});
+
+$("#loginForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const btn=$("#loginSubmitBtn");btn.disabled=true;btn.textContent="Signing in…";
+  const errEl=$("#loginError");errEl.style.display="none";
+  const u=$("#lUser").value.trim().toLowerCase(),p=$("#lPin").value;
+  try{
+    if(profilePending){
+      let tok=null;
+      for(const prof of profileCandidates()){
+        try{tok=await decryptProfileToken(prof,p);gh.repo=prof.repo;gh.path=prof.path;gh.branch=prof.branch;break;}catch(_){}
+      }
+      if(!tok)throw new Error("bad");
+      gh.token=tok;gh.sha=null;
+      const r=await ghLoad();
+      if(r.notFound)throw new Error("Your register is missing from the repo — reconnect via “Connect a different repo”.");
+      parseWorkbook(r.buf);
+      if(!(username&&passHash)){profilePending=false;showView("vSetCreds");return;}
+      if(u===username.trim().toLowerCase()&&await verifyPin(p,passHash)){
+        profilePending=false;sessionPass=p;
+        await saveProfile(p);
+        enterApp();toast("Signed in ✓");
+      }else throw new Error("bad");
+    }else{
+      if(u===username.trim().toLowerCase()&&await verifyPin(p,passHash)){
+        sessionPass=p;
+        if(rememberDevice&&gh.token)await saveProfile(p);
+        enterApp();toast("Signed in ✓");
+      }else throw new Error("bad");
+    }
+  }catch(err){
+    errEl.textContent=err.message==="bad"?"Wrong login ID or password — try again.":err.message;
+    errEl.style.display="block";$("#lPin").value="";$("#lPin").focus();
+  }finally{btn.disabled=false;btn.textContent="Sign in";}
+});
+
+$("#btnForget").addEventListener("click",()=>{
+  clearProfile();profilePending=false;$("#btnForget").style.display="none";
+  toast("Saved connection removed from this device");
+  showView("vLanding");
+});
+
+$("#btnSetCreds").addEventListener("click",async()=>{
+  const err=$("#setCredsError");
+  const user=$("#sUser").value.trim(),pin=$("#sPin").value,pin2=$("#sPin2").value;
+  if(!user){err.textContent="Choose a login ID.";err.style.display="block";return;}
+  if(pin.length<4){err.textContent="Password must be at least 4 characters.";err.style.display="block";return;}
+  if(pin!==pin2){err.textContent="Passwords don’t match.";err.style.display="block";return;}
+  username=user;passHash=await hashPin(pin);sessionPass=pin;
+  if(rememberDevice&&gh.token)await saveProfile(pin);
+  setDirty(true);enterApp();
+  toast("Login created — click “Save” to store it");
+});
+
+$("#btnLock").addEventListener("click",()=>{
+  if(dirty&&!confirm("You have unsaved changes. Sign out anyway? (Changes stay in memory until you sign in and save.)"))return;
+  clearSession();sessionPass=null;
+  showLogin();
+});
+
+/* ---------- nav ---------- */
+$$(".pill").forEach(b=>b.addEventListener("click",()=>{
+  $$(".pill").forEach(x=>x.classList.remove("active"));b.classList.add("active");
+  $$(".panel").forEach(p=>p.classList.remove("active"));
+  $("#panel-"+b.dataset.tab).classList.add("active");
+  if(b.dataset.tab==="new")refreshBuilderMeta();
+}));
+$("#btnSave").addEventListener("click",saveFile);
+$("#btnTheme").addEventListener("click",()=>{applyTheme(theme==="dark"?"light":"dark");setDirty(true);});
+window.addEventListener("keydown",e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="s"&&$("#app").style.display==="block"){e.preventDefault();saveFile();}
+});
+window.addEventListener("beforeunload",e=>{if(dirty){e.preventDefault();e.returnValue="";}});
+
+/* ============================================================
+   RENDERING
+============================================================ */
+function renderAll(){[renderDash,renderInvs,renderCust,renderBuilder].forEach(fn=>{try{fn();}catch(e){console.error(fn.name,e);}});}
+
+function invGst(i){return r2(i.cgst+i.sgst+i.igst);}
+
+function renderDash(){
+  const mk=todayISO().slice(0,7);
+  const monthInv=invoices.filter(i=>i.date.startsWith(mk));
+  const unpaid=invoices.filter(i=>i.status!=="Paid");
+  const fy=fyOf(todayISO());
+  const fyInv=invoices.filter(i=>fyOf(i.date)===fy);
+  $("#kMonth").textContent=fmt(monthInv.reduce((s,i)=>s+i.total,0));
+  $("#kMonthSub").textContent=monthInv.length+" invoice"+(monthInv.length===1?"":"s")+" this month";
+  $("#kDue").textContent=fmt(unpaid.reduce((s,i)=>s+i.total,0));
+  $("#kDueSub").textContent=unpaid.length+" unpaid";
+  $("#kGst").textContent=fmt(fyInv.reduce((s,i)=>s+invGst(i),0));
+  $("#kGstSub").textContent="FY "+fy+" · "+fmt(fyInv.reduce((s,i)=>s+i.total,0))+" billed";
+  $("#kCust").textContent=customers.length;
+  $("#kCustSub").textContent="in your customer master";
+
+  const recent=[...invoices].sort((a,b)=>b.date.localeCompare(a.date)||b.no.localeCompare(a.no)).slice(0,6);
+  $("#tblRecent tbody").innerHTML=recent.map(i=>invRowHTML(i,true)).join("");
+  $("#emptyRecent").style.display=invoices.length?"none":"block";
+  $("#tblRecent").style.display=invoices.length?"":"none";
+}
+
+function invRowHTML(i,compact){
+  const actions=`<div class="row-actions">
+    <button type="button" class="icon-btn" data-inv="${esc(i.no)}" data-act="view">PDF</button>
+    ${compact?"":`<button type="button" class="icon-btn" data-inv="${esc(i.no)}" data-act="togglePaid">${i.status==="Paid"?"Mark unpaid":"Mark paid"}</button>
+    <button type="button" class="icon-btn" data-inv="${esc(i.no)}" data-act="editInv">Edit</button>
+    <button type="button" class="icon-btn danger" data-inv="${esc(i.no)}" data-act="delInv">Delete</button>`}
+  </div>`;
+  if(compact)return `<tr>
+    <td data-l="Invoice"><strong style="font-family:var(--mono);font-size:.82rem">${esc(i.no)}</strong></td>
+    <td data-l="Date">${esc(i.date)}</td>
+    <td data-l="Customer">${esc(i.customer)}</td>
+    <td data-l="Total" class="num">${fmt(i.total)}</td>
+    <td data-l="Status"><span class="tag ${i.status==="Paid"?"paid":"unpaid"}">${esc(i.status)}</span></td>
+    <td data-l="">${actions}</td></tr>`;
+  return `<tr>
+    <td data-l="Invoice"><strong style="font-family:var(--mono);font-size:.82rem">${esc(i.no)}</strong></td>
+    <td data-l="Date">${esc(i.date)}</td>
+    <td data-l="Customer">${esc(i.customer)}</td>
+    <td data-l="Taxable" class="num">${fmt(i.taxable)}</td>
+    <td data-l="GST" class="num">${fmt(invGst(i))}</td>
+    <td data-l="Total" class="num">${fmt(i.total)}</td>
+    <td data-l="Tax"><span class="tag ${i.taxType==="IGST"?"igst":"cgst"}">${esc(i.taxType)}</span></td>
+    <td data-l="Status"><span class="tag ${i.status==="Paid"?"paid":"unpaid"}">${esc(i.status)}</span></td>
+    <td data-l="">${actions}</td></tr>`;
+}
+
+function filteredInvoices(){
+  const q=$("#searchInv").value.trim().toLowerCase();
+  const from=$("#fromInv").value,to=$("#toInv").value,st=$("#filterInvStatus").value;
+  return invoices.filter(i=>
+    (!q||(i.no+" "+i.customer).toLowerCase().includes(q))&&
+    (!from||i.date>=from)&&(!to||i.date<=to)&&(!st||i.status===st)
+  ).sort((a,b)=>b.date.localeCompare(a.date)||b.no.localeCompare(a.no));
+}
+function renderInvs(){
+  const rows=filteredInvoices();
+  $("#invTotalHead").textContent=invoices.length?invoices.length+" total":"";
+  $("#invFilteredSum").textContent=rows.length?`Showing ${rows.length} · ${fmt(rows.reduce((s,i)=>s+i.total,0))}`:"";
+  $("#tblInvs tbody").innerHTML=rows.map(i=>invRowHTML(i,false)).join("");
+  $("#emptyInvs").style.display=rows.length?"none":"block";
+  $("#tblInvs").style.display=rows.length?"":"none";
+}
+["searchInv","fromInv","toInv","filterInvStatus"].forEach(id=>$("#"+id).addEventListener("input",renderInvs));
+
+/* ---------- customers ---------- */
+function renderCust(){
+  const q=$("#searchCust").value.trim().toLowerCase();
+  $("#custTotalHead").textContent=customers.length?customers.length+" customers":"";
+  const rows=customers.map((c,i)=>({c,i}))
+    .filter(({c})=>!q||(c.name+" "+c.gstin+" "+c.person+" "+c.email).toLowerCase().includes(q))
+    .sort((a,b)=>a.c.name.localeCompare(b.c.name));
+  $("#tblCust tbody").innerHTML=rows.map(({c,i})=>{
+    if(i===editingCust)return `<tr data-i="${i}">
+      <td data-l="Name"><input type="text" class="e-name" value="${esc(c.name)}"></td>
+      <td data-l="GSTIN"><input type="text" class="e-gstin" value="${esc(c.gstin)}" style="text-transform:uppercase"></td>
+      <td data-l="Contact"><input type="text" class="e-person" value="${esc(c.person)}"></td>
+      <td data-l="Phone"><input type="tel" class="e-phone" value="${esc(c.phone)}"></td>
+      <td data-l="Email"><input type="email" class="e-email" value="${esc(c.email)}"></td>
+      <td data-l="Address"><input type="text" class="e-addr" value="${esc(c.addr)}"></td>
+      <td data-l=""><div class="row-actions">
+        <button type="button" class="icon-btn confirm" data-act="saveCust">Save</button>
+        <button type="button" class="icon-btn" data-act="cancelCust">Cancel</button></div></td></tr>`;
+    return `<tr data-i="${i}">
+      <td data-l="Name"><strong>${esc(c.name)}</strong>${c.personNo?`<span style="display:block;font-size:.72rem;color:var(--muted)">${esc(c.person)} · ${esc(c.personNo)}</span>`:""}</td>
+      <td data-l="GSTIN" style="font-family:var(--mono);font-size:.8rem">${esc(c.gstin)||"—"}</td>
+      <td data-l="Contact">${esc(c.person)||"—"}</td>
+      <td data-l="Phone">${esc(c.phone)||"—"}</td>
+      <td data-l="Email" style="font-size:.82rem">${esc(c.email)||"—"}</td>
+      <td data-l="Address" style="color:var(--muted);font-size:.82rem">${esc(c.addr)||"—"}</td>
+      <td data-l=""><div class="row-actions">
+        <button type="button" class="icon-btn" data-act="editCust">Edit</button>
+        <button type="button" class="icon-btn danger" data-act="delCust">Delete</button></div></td></tr>`;
+  }).join("");
+  $("#emptyCust").style.display=customers.length?"none":"block";
+  $("#tblCust").style.display=customers.length?"":"none";
+}
+$("#searchCust").addEventListener("input",renderCust);
+
+$("#formCust").addEventListener("submit",e=>{
+  e.preventDefault();
+  const name=$("#cuName").value.trim();
+  if(customers.some(c=>c.name.toLowerCase()===name.toLowerCase())){toast("A customer with that name already exists");return;}
+  customers.push({name,gstin:$("#cuGstin").value.trim().toUpperCase(),email:$("#cuEmail").value.trim(),
+    phone:$("#cuPhone").value.trim(),person:$("#cuPerson").value.trim(),personNo:$("#cuPersonNo").value.trim(),
+    addr:$("#cuAddr").value.trim()});
+  e.target.reset();setDirty(true);renderAll();
+  toast("Customer added");
+});
+
+document.addEventListener("click",e=>{
+  const btn=e.target.closest("[data-act]");if(!btn)return;
+  const act=btn.dataset.act;
+  const tr=btn.closest("tr");const i=tr?+tr.dataset.i:-1;
+  const invNo=btn.dataset.inv;
+  const inv=invNo?invoices.find(x=>x.no===invNo):null;
+  switch(act){
+    case "editCust":editingCust=i;renderCust();break;
+    case "cancelCust":editingCust=-1;renderCust();break;
+    case "saveCust":{
+      const c=customers[i];const oldName=c.name;
+      c.name=tr.querySelector(".e-name").value.trim()||c.name;
+      c.gstin=tr.querySelector(".e-gstin").value.trim().toUpperCase();
+      c.person=tr.querySelector(".e-person").value.trim();
+      c.phone=tr.querySelector(".e-phone").value.trim();
+      c.email=tr.querySelector(".e-email").value.trim();
+      c.addr=tr.querySelector(".e-addr").value.trim();
+      if(oldName!==c.name)invoices.forEach(v=>{if(v.customer===oldName)v.customer=c.name;});
+      editingCust=-1;setDirty(true);renderAll();break;
+    }
+    case "delCust":{
+      const c=customers[i];
+      const used=invoices.some(v=>v.customer===c.name);
+      if(used){toast("This customer has invoices — delete those first");return;}
+      if(confirm(`Delete "${c.name}"? This is removed on your next save.`)){customers.splice(i,1);setDirty(true);renderAll();}
+      break;
+    }
+    case "view":if(inv)openPrint(inv);break;
+    case "togglePaid":if(inv){inv.status=inv.status==="Paid"?"Unpaid":"Paid";setDirty(true);renderAll();}break;
+    case "editInv":if(inv)loadInvoiceIntoBuilder(inv);break;
+    case "delInv":
+      if(inv&&confirm(`Delete invoice ${inv.no}? Its lines are removed too on your next save.`)){
+        invoices=invoices.filter(x=>x.no!==inv.no);
+        lines=lines.filter(l=>l.no!==inv.no);
+        setDirty(true);renderAll();
+      }break;
+  }
+});
+
+/* ============================================================
+   INVOICE BUILDER
+============================================================ */
+function nextInvoiceNo(dateISO){
+  const fy=fyOf(dateISO||todayISO());
+  const prefix=(biz.prefix||"INV").trim();
+  const re=new RegExp("^"+prefix.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\/"+fy+"\\/(\\d+)$");
+  let max=0;
+  invoices.forEach(i=>{const m=i.no.match(re);if(m)max=Math.max(max,parseInt(m[1],10));});
+  return `${prefix}/${fy}/${String(max+1).padStart(4,"0")}`;
+}
+function resetBuilder(){
+  builder={editingNo:null,lines:[{desc:"",hsn:"",qty:1,rate:0,gst:18}]};
+  $("#nDate").value=todayISO();
+  $("#nTax").value="auto";
+  $("#nNotes").value="";
+  $("#btnCancelInv").style.display="none";
+  $("#builderTitle").textContent="New Invoice";
+}
+function refreshBuilderMeta(){
+  // customer select
+  const sel=$("#nCust"),cur=sel.value;
+  sel.innerHTML=customers.length
+    ?customers.map(c=>`<option${c.name===cur?" selected":""}>${esc(c.name)}</option>`).join("")
+    :'<option value="">Add a customer first</option>';
+  const no=builder.editingNo||nextInvoiceNo($("#nDate").value);
+  $("#invNoDisplay").textContent=no;
+  renderBuilder();
+}
+function selectedCustomer(){return customers.find(c=>c.name===$("#nCust").value)||null;}
+function effectiveTaxType(){
+  const v=$("#nTax").value;
+  if(v!=="auto")return v;
+  const c=selectedCustomer();
+  const bs=stateCode(biz.gstin),cs=stateCode(c?c.gstin:"");
+  if(bs&&cs&&bs!==cs)return "IGST";
+  return "CGST/SGST";
+}
+function builderTotals(){
+  let taxable=0,gst=0;
+  builder.lines.forEach(l=>{
+    const t=r2(num(l.qty)*num(l.rate));
+    taxable+=t;gst+=r2(t*num(l.gst)/100);
+  });
+  taxable=r2(taxable);gst=r2(gst);
+  const type=effectiveTaxType();
+  return {taxable,gst,type,
+    cgst:type==="IGST"?0:r2(gst/2),sgst:type==="IGST"?0:r2(gst-r2(gst/2)),
+    igst:type==="IGST"?gst:0,total:r2(taxable+gst)};
+}
+function renderBuilder(){
+  $("#lineTable tbody").innerHTML=builder.lines.map((l,i)=>{
+    const amt=r2(num(l.qty)*num(l.rate));
+    return `<tr data-i="${i}">
+      <td data-l="Description"><input type="text" class="bl-desc" value="${esc(l.desc)}" placeholder="Item or service"></td>
+      <td data-l="HSN/SAC"><input type="text" class="bl-hsn" value="${esc(l.hsn)}" placeholder="9983"></td>
+      <td data-l="Qty" class="num"><input type="number" step="0.01" min="0" inputmode="decimal" class="bl-qty" value="${l.qty}"></td>
+      <td data-l="Rate" class="num"><input type="number" step="0.01" min="0" inputmode="decimal" class="bl-rate" value="${l.rate}"></td>
+      <td data-l="GST %"><select class="bl-gst">${GST_RATES.map(r=>`<option value="${r}"${r===num(l.gst)?" selected":""}>${r}%</option>`).join("")}</select></td>
+      <td data-l="Amount" class="num">${fmt(amt)}</td>
+      <td data-l=""><div class="row-actions"><button type="button" class="icon-btn danger bl-del">✕</button></div></td></tr>`;
+  }).join("");
+  const t=builderTotals();
+  $("#tTaxable").textContent=fmt(t.taxable);
+  $("#tCgst").textContent=fmt(t.cgst);
+  $("#tSgst").textContent=fmt(t.sgst);
+  $("#tIgst").textContent=fmt(t.igst);
+  $("#tGrand").textContent=fmt(t.total);
+  const igst=t.type==="IGST";
+  $("#rowCgst").style.display=igst?"none":"flex";
+  $("#rowSgst").style.display=igst?"none":"flex";
+  $("#rowIgst").style.display=igst?"flex":"none";
+}
+$("#lineTable").addEventListener("input",e=>{
+  const tr=e.target.closest("tr");if(!tr)return;
+  const l=builder.lines[+tr.dataset.i];if(!l)return;
+  if(e.target.classList.contains("bl-desc"))l.desc=e.target.value;
+  if(e.target.classList.contains("bl-hsn"))l.hsn=e.target.value;
+  if(e.target.classList.contains("bl-qty"))l.qty=e.target.value;
+  if(e.target.classList.contains("bl-rate"))l.rate=e.target.value;
+  if(e.target.classList.contains("bl-gst"))l.gst=e.target.value;
+  if(e.target.classList.contains("bl-qty")||e.target.classList.contains("bl-rate")||e.target.classList.contains("bl-gst")){
+    // update amount cell + totals without rebuilding inputs (keeps focus)
+    const amtCell=tr.querySelector('td[data-l="Amount"]');
+    if(amtCell)amtCell.textContent=fmt(r2(num(l.qty)*num(l.rate)));
+    const t=builderTotals();
+    $("#tTaxable").textContent=fmt(t.taxable);$("#tCgst").textContent=fmt(t.cgst);
+    $("#tSgst").textContent=fmt(t.sgst);$("#tIgst").textContent=fmt(t.igst);$("#tGrand").textContent=fmt(t.total);
+  }
+});
+$("#lineTable").addEventListener("click",e=>{
+  if(!e.target.classList.contains("bl-del"))return;
+  const tr=e.target.closest("tr");
+  builder.lines.splice(+tr.dataset.i,1);
+  if(!builder.lines.length)builder.lines.push({desc:"",hsn:"",qty:1,rate:0,gst:18});
+  renderBuilder();
+});
+$("#btnAddLine").addEventListener("click",()=>{
+  const last=builder.lines[builder.lines.length-1];
+  builder.lines.push({desc:"",hsn:"",qty:1,rate:0,gst:last?num(last.gst):18});
+  renderBuilder();
+});
+$("#nCust").addEventListener("change",renderBuilder);
+$("#nTax").addEventListener("change",renderBuilder);
+$("#nDate").addEventListener("change",()=>{if(!builder.editingNo)$("#invNoDisplay").textContent=nextInvoiceNo($("#nDate").value);});
+
+$("#btnSaveInv").addEventListener("click",()=>{
+  const c=selectedCustomer();
+  if(!c){toast("Add and select a customer first");return;}
+  const validLines=builder.lines.filter(l=>l.desc.trim()&&num(l.rate)>0&&num(l.qty)>0);
+  if(!validLines.length){toast("Add at least one line with a description, qty and rate");return;}
+  const date=$("#nDate").value||todayISO();
+  const t=builderTotals();
+  const no=builder.editingNo||nextInvoiceNo(date);
+  // remove previous version if editing
+  invoices=invoices.filter(x=>x.no!==no);
+  lines=lines.filter(l=>l.no!==no);
+  invoices.push({no,date,customer:c.name,gstin:c.gstin,taxType:t.type,
+    taxable:t.taxable,cgst:t.cgst,sgst:t.sgst,igst:t.igst,total:t.total,
+    status:"Unpaid",notes:$("#nNotes").value.trim()});
+  validLines.forEach(l=>{
+    const taxable=r2(num(l.qty)*num(l.rate));
+    const gstAmt=r2(taxable*num(l.gst)/100);
+    lines.push({no,desc:l.desc.trim(),hsn:l.hsn.trim(),qty:num(l.qty),rate:num(l.rate),
+      gst:num(l.gst),taxable,gstAmt,total:r2(taxable+gstAmt)});
+  });
+  setDirty(true);
+  const wasEdit=!!builder.editingNo;
+  const saved=invoices.find(x=>x.no===no);
+  resetBuilder();refreshBuilderMeta();renderAll();
+  toast(`Invoice ${no} ${wasEdit?"updated":"created"} — remember to Save`);
+  openPrint(saved);
+});
+$("#btnCancelInv").addEventListener("click",()=>{resetBuilder();refreshBuilderMeta();});
+
+function loadInvoiceIntoBuilder(inv){
+  builder.editingNo=inv.no;
+  builder.lines=lines.filter(l=>l.no===inv.no).map(l=>({desc:l.desc,hsn:l.hsn,qty:l.qty,rate:l.rate,gst:l.gst}));
+  if(!builder.lines.length)builder.lines.push({desc:"",hsn:"",qty:1,rate:0,gst:18});
+  $$(".pill").forEach(x=>x.classList.remove("active"));
+  $('[data-tab="new"]').classList.add("active");
+  $$(".panel").forEach(p=>p.classList.remove("active"));
+  $("#panel-new").classList.add("active");
+  $("#builderTitle").textContent="Edit Invoice";
+  $("#btnCancelInv").style.display="inline-block";
+  $("#nDate").value=inv.date;
+  $("#nNotes").value=inv.notes;
+  $("#nTax").value=inv.taxType;
+  refreshBuilderMeta();
+  $("#nCust").value=inv.customer;
+  $("#invNoDisplay").textContent=inv.no;
+  renderBuilder();
+}
+
+/* ============================================================
+   PRINT / PDF
+============================================================ */
+function openPrint(inv){
+  const ls=lines.filter(l=>l.no===inv.no);
+  const cust=customers.find(c=>c.name===inv.customer)||{name:inv.customer,gstin:inv.gstin,addr:"",person:"",personNo:"",phone:"",email:""};
+  const igst=inv.taxType==="IGST";
+  $("#printSheet").innerHTML=`
+    <div class="ph">
+      <div><h1>${esc(biz.name||"Your Business")}</h1>
+        <div class="muted">${esc(biz.addr)}</div>
+        <div class="muted">${biz.gstin?"GSTIN: "+esc(biz.gstin):""}${biz.phone?" · "+esc(biz.phone):""}${biz.email?" · "+esc(biz.email):""}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:17px;font-weight:700;letter-spacing:.05em">TAX INVOICE</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:13px;margin-top:4px">${esc(inv.no)}</div>
+        <div class="muted">Date: ${esc(inv.date)}</div>
+        <div class="muted">${igst?"IGST (inter-state)":"CGST + SGST (intra-state)"}</div>
+      </div>
+    </div>
+    <div class="blocks">
+      <div class="block"><b>Bill To</b>
+        <div style="font-weight:600">${esc(cust.name)}</div>
+        <div class="muted">${esc(cust.addr)}</div>
+        <div class="muted">${cust.gstin?"GSTIN: "+esc(cust.gstin):"Unregistered"}</div>
+        <div class="muted">${esc(cust.person)}${cust.personNo?" · "+esc(cust.personNo):""}</div>
+      </div>
+      <div class="block" style="text-align:right"><b>Payment status</b>
+        <div style="font-weight:700;color:${inv.status==="Paid"?"#0C9B72":"#B8862B"}">${esc(inv.status).toUpperCase()}</div>
+        ${inv.notes?`<div class="muted" style="margin-top:6px">${esc(inv.notes)}</div>`:""}
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>#</th><th>Description</th><th>HSN/SAC</th><th style="text-align:right">Qty</th><th style="text-align:right">Rate</th><th style="text-align:right">Taxable</th><th style="text-align:right">GST %</th><th style="text-align:right">GST Amt</th><th style="text-align:right">Total</th></tr></thead>
+      <tbody>${ls.map((l,i)=>`<tr>
+        <td>${i+1}</td><td>${esc(l.desc)}</td><td>${esc(l.hsn)||"—"}</td>
+        <td class="n">${l.qty}</td><td class="n">${fmt(l.rate)}</td><td class="n">${fmt(l.taxable)}</td>
+        <td class="n">${l.gst}%</td><td class="n">${fmt(l.gstAmt)}</td><td class="n">${fmt(l.total)}</td></tr>`).join("")}
+      </tbody>
+    </table>
+    <div class="totals">
+      <div class="r"><span>Taxable value</span><span>${fmt(inv.taxable)}</span></div>
+      ${igst?`<div class="r"><span>IGST</span><span>${fmt(inv.igst)}</span></div>`
+        :`<div class="r"><span>CGST</span><span>${fmt(inv.cgst)}</span></div>
+          <div class="r"><span>SGST</span><span>${fmt(inv.sgst)}</span></div>`}
+      <div class="r g"><span>Grand total</span><span>${fmt(inv.total)}</span></div>
+    </div>
+    <div class="words"><b>Amount in words:</b> ${esc(inWords(inv.total))}</div>
+    <div class="foot">
+      <div>This is a computer generated invoice.</div>
+      <div class="sig">For ${esc(biz.name||"Your Business")}<div class="line">Authorised Signatory</div></div>
+    </div>`;
+  $("#printOverlay").style.display="block";
+}
+$("#btnDoPrint").addEventListener("click",()=>window.print());
+$("#btnClosePrint").addEventListener("click",()=>{$("#printOverlay").style.display="none";});
+
+/* ============================================================
+   EXPORT CSV
+============================================================ */
+function csvCell(v){const s=String(v??"");return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function downloadCSV(name,rows){
+  const csv="\uFEFF"+rows.map(r=>r.map(csvCell).join(",")).join("\r\n");
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download=name;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+}
+function exportRange(){const f=$("#expFrom").value,t=$("#expTo").value;
+  return invoices.filter(i=>(!f||i.date>=f)&&(!t||i.date<=t)).sort((a,b)=>a.date.localeCompare(b.date));}
+$("#btnExport").addEventListener("click",()=>{
+  const d=new Date();
+  $("#expTo").value=todayISO();
+  const first=new Date(d.getFullYear(),d.getMonth(),1);
+  $("#expFrom").value=first.toISOString().slice(0,10);
+  $("#exportOverlay").style.display="flex";
+});
+$("#btnCloseExport").addEventListener("click",()=>{$("#exportOverlay").style.display="none";});
+$("#exportOverlay").addEventListener("click",e=>{if(e.target.id==="exportOverlay")$("#exportOverlay").style.display="none";});
+$("#btnExpRegister").addEventListener("click",()=>{
+  const rows=exportRange();
+  if(!rows.length){toast("No invoices in that period");return;}
+  const out=[["Invoice No","Date","Customer","GSTIN","Tax Type","Taxable Value","CGST","SGST","IGST","Total GST","Grand Total","Status","Notes"]];
+  rows.forEach(i=>out.push([i.no,i.date,i.customer,i.gstin,i.taxType,i.taxable,i.cgst,i.sgst,i.igst,invGst(i),i.total,i.status,i.notes]));
+  downloadCSV(`invoice-register_${$("#expFrom").value||"all"}_${$("#expTo").value||"all"}.csv`,out);
+  toast("Register downloaded ✓");
+});
+$("#btnExpLines").addEventListener("click",()=>{
+  const invs=exportRange();
+  if(!invs.length){toast("No invoices in that period");return;}
+  const set=new Set(invs.map(i=>i.no));
+  const byNo=Object.fromEntries(invs.map(i=>[i.no,i]));
+  const out=[["Invoice No","Date","Customer","GSTIN","Description","HSN/SAC","Qty","Rate","Taxable","GST %","GST Amount","Line Total"]];
+  lines.filter(l=>set.has(l.no)).forEach(l=>{const i=byNo[l.no];
+    out.push([l.no,i.date,i.customer,i.gstin,l.desc,l.hsn,l.qty,l.rate,l.taxable,l.gst,l.gstAmt,l.total]);});
+  downloadCSV(`invoice-lines_${$("#expFrom").value||"all"}_${$("#expTo").value||"all"}.csv`,out);
+  toast("Line items downloaded ✓");
+});
+
+/* ============================================================
+   SETTINGS
+============================================================ */
+$("#btnSettings").addEventListener("click",()=>{
+  $("#settingsError").style.display="none";
+  $("#stBiz").value=biz.name;$("#stAddr").value=biz.addr;$("#stGstin").value=biz.gstin;
+  $("#stEmail").value=biz.email;$("#stPhone").value=biz.phone;$("#stPrefix").value=biz.prefix;
+  $("#stUser").value=username;
+  $("#stCur").value="";$("#stNew").value="";$("#stNew2").value="";
+  $("#settingsOverlay").style.display="flex";
+});
+$("#btnCloseSettings").addEventListener("click",()=>{$("#settingsOverlay").style.display="none";});
+$("#settingsOverlay").addEventListener("click",e=>{if(e.target.id==="settingsOverlay")$("#settingsOverlay").style.display="none";});
+$("#btnSettingsSave").addEventListener("click",async()=>{
+  const err=$("#settingsError");err.style.display="none";
+  const user=$("#stUser").value.trim();
+  if(!user){err.textContent="Login ID can’t be empty.";err.style.display="block";return;}
+  const cur=$("#stCur").value,nw=$("#stNew").value,nw2=$("#stNew2").value;
+  let passwordChanged=false;
+  if(nw||nw2||cur){
+    if(!cur||!(await verifyPin(cur,passHash))){err.textContent="Current password is wrong.";err.style.display="block";return;}
+    if(nw.length<4){err.textContent="New password must be at least 4 characters.";err.style.display="block";return;}
+    if(nw!==nw2){err.textContent="New passwords don’t match.";err.style.display="block";return;}
+    passHash=await hashPin(nw);sessionPass=nw;passwordChanged=true;
+  }
+  biz.name=$("#stBiz").value.trim();biz.addr=$("#stAddr").value.trim();
+  biz.gstin=$("#stGstin").value.trim().toUpperCase();
+  biz.email=$("#stEmail").value.trim();biz.phone=$("#stPhone").value.trim();
+  biz.prefix=($("#stPrefix").value.trim()||"INV");
+  username=user;
+  $("#bizLabel").textContent=biz.name||"GST invoicing";
+  if(gh.token&&sessionPass)await saveProfile(sessionPass);
+  setDirty(true);
+  $("#settingsOverlay").style.display="none";
+  refreshBuilderMeta();
+  toast(passwordChanged?"Updated — click Save to store it, then get a fresh device setup code":"Updated — click Save to store it");
+});
+
+/* device setup */
+async function generateEmbedLine(){return "const EMBEDDED="+JSON.stringify(await generateProfileObject())+"; // BILR-EMBED";}
+$("#btnEmbed").addEventListener("click",async()=>{
+  if(!sessionPass||!gh.token){toast("Sign out and sign in with your password first — it’s needed to encrypt the code");return;}
+  try{
+    $("#embedCode").value=await generateEmbedLine();
+    $("#settingsOverlay").style.display="none";
+    $("#embedOverlay").style.display="flex";
+  }catch(e){console.error(e);toast("Could not generate the code — try again.");}
+});
+$("#btnCloseEmbed").addEventListener("click",()=>{$("#embedOverlay").style.display="none";});
+$("#embedOverlay").addEventListener("click",e=>{if(e.target.id==="embedOverlay")$("#embedOverlay").style.display="none";});
+$("#btnCopyEmbed").addEventListener("click",async()=>{
+  const ta=$("#embedCode");ta.select();
+  try{await navigator.clipboard.writeText(ta.value);toast("Copied ✓");}
+  catch(_){document.execCommand("copy");toast("Copied ✓");}
+});
+$("#btnDownloadCfg").addEventListener("click",async()=>{
+  if(!sessionPass||!gh.token){toast("Sign out and sign in with your password first — it’s needed to encrypt the file");return;}
+  try{
+    const obj=await generateProfileObject();
+    const blob=new Blob([JSON.stringify(obj,null,2)],{type:"application/json"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);a.download="bilr-config.json";
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    toast("Downloaded — upload it to your website repo");
+  }catch(e){console.error(e);toast("Could not generate the file — try again.");}
+});
+
+/* ============================================================
+   STARTUP
+============================================================ */
+applyTheme(theme,false);
+
+(async function init(){
+  if(!(crypto&&crypto.subtle))return;
+
+  // live session resumes silently (refresh / reopen within 15 min)
+  const s=getSession();
+  if(s){
+    gh.token=s.t;gh.repo=s.r;gh.path=s.p;gh.branch=s.b;gh.sha=null;
+    showView("vResume");
+    try{
+      const r=await ghLoad();
+      if(!r.notFound){
+        parseWorkbook(r.buf);
+        saveSession();
+        enterApp();
+        return;
+      }
+    }catch(_){/* fall through */}
+    clearSession();
+    showView("vLanding");
+  }
+
+  // otherwise saved setup shows login directly
+  let p=(canRemember()?getProfile():null)||embeddedProfile();
+  if(!p){fetchedProfile=await loadRemoteConfig();p=fetchedProfile;}
+  if(!p)return;
+  profilePending=true;
+  username=p.username||"";
+  gh.repo=p.repo;gh.path=p.path;gh.branch=p.branch;
+  $("#loginAvatar").textContent=(p.owner||p.username||"B").trim().charAt(0).toUpperCase();
+  $("#loginTitle").textContent=p.owner?`Welcome back — ${p.owner}`:"Sign in";
+  if(p.username)$("#lUser").value=p.username;
+  $("#btnForget").style.display="flex";
+  showView("vLogin");
+  setTimeout(()=>(p.username?$("#lPin"):$("#lUser")).focus(),60);
+})();
+</script>
+</body>
+</html>
